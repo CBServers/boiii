@@ -10,7 +10,7 @@
 #include <utils/io.hpp>
 #include <utils/compression.hpp>
 
-#define UPDATE_SERVER "https://updater.cbservers.xyz/"
+#define UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
 
 #define UPDATE_FILE_MAIN UPDATE_SERVER "boiii.json"
 #define UPDATE_FOLDER_MAIN UPDATE_SERVER "boiii/"
