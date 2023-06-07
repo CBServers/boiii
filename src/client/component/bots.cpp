@@ -22,17 +22,7 @@ namespace bots
 
 		std::vector<bot_name> load_bots_names()
 		{
-			std::vector<bot_name> bot_names =
-			{
-				{"momo5502", "IW5x"},
-				{"Jasmin", "<3"},
-				{"Dss0", "IW3x"},
-				{"FutureRave", "FR"},
-				{"Diamante", "IW2x"},
-				{"St0rm", "NN"},
-				{"Joel", "NN"},
-				{"Louve", "IW5x"},
-			};
+			std::vector<bot_name> bot_names = {};
 
 			std::string buffer;
 			if (!utils::io::read_file("boiii/bots.txt", &buffer) || buffer.empty())
