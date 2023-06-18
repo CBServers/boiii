@@ -89,4 +89,26 @@ namespace game
 
 		return appdata_path;
 	}
+
+	std::filesystem::path get_appdata_cache_path()
+	{
+		static const auto cache_path = []
+		{
+			PWSTR path;
+			if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path)))
+			{
+				throw std::runtime_error("Failed to read APPDATA path!");
+			}
+
+			auto _ = utils::finally([&path]
+				{
+					CoTaskMemFree(path);
+				});
+
+			static auto cache = std::filesystem::path(path) / "cache";
+			return cache;
+		}();
+
+		return cache_path;
+	}
 }

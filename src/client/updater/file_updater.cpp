@@ -14,25 +14,17 @@
 
 #define UPDATE_FILE_MAIN UPDATE_SERVER "boiii.json"
 #define UPDATE_FOLDER_MAIN UPDATE_SERVER "boiii/"
-
 #define UPDATE_HOST_BINARY "boiii.exe"
+
+#define CACHE_FOLDER game::get_appdata_cache_path()
 
 namespace updater
 {
 	namespace
 	{
-		std::string get_appdata_folder()
+		std::filesystem::path get_cache_folder()
 		{
-			TCHAR path[MAX_PATH];
-			SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, path);
-			return path;
-		}
-
-		const auto APPDATA_FOLDER = get_appdata_folder();
-
-		std::string get_cache_folder()
-		{
-			return APPDATA_FOLDER + "\\cache\\";
+			return CACHE_FOLDER;
 		}
 
 		std::string get_update_file()
@@ -108,7 +100,7 @@ namespace updater
 
 		bool has_cache_file(const std::string& file)
 		{
-			const auto path = get_cache_folder() + file;
+			const auto path = get_cache_folder() / file;
 			return utils::io::file_exists(path);
 		}
 
@@ -139,7 +131,7 @@ namespace updater
 			std::string data;
 			for (const auto& file : files)
 			{
-				if (!utils::io::write_file(cache_folder + file, data))
+				if (!utils::io::write_file(cache_folder / file, data))
 				{
 					throw std::runtime_error("Failed to write: " + file);
 				}
