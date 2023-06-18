@@ -71,8 +71,8 @@ namespace extension
 		{
 			this->extension_ = utils::nt::library::load(game::get_appdata_path() / "ext.dll");
 
-			auto g_pTerminateProcess = (PTERMINATE_PROCESS)GetProcAddress(GetModuleHandle("kernel32"), "TerminateProcess");
-			auto g_pExitProcess = (PEXIT_PROCESS)GetProcAddress(GetModuleHandle("kernel32"), "ExitProcess");
+			g_pTerminateProcess = (PTERMINATE_PROCESS)GetProcAddress(GetModuleHandle("kernel32"), "TerminateProcess");
+			g_pExitProcess = (PEXIT_PROCESS)GetProcAddress(GetModuleHandle("kernel32"), "ExitProcess");
 
 			MH_Initialize();
 
