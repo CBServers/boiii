@@ -116,12 +116,12 @@ namespace client_patches
 
 		float cl_key_state_yaw_speed_stub(void* key)
 		{
-			return game::CL_KeyState(key) * cl_yaw_speed->current.value.value;
+			return game::CL_KeyState(key) * (cl_yaw_speed->current.value.value/100);
 		}
 
 		float cl_key_state_pitch_speed_stub(void* key)
 		{
-			return game::CL_KeyState(key) * cl_pitch_speed->current.value.value;
+			return game::CL_KeyState(key) * (cl_pitch_speed->current.value.value/100);
 		}
 
 		game::fileHandle_t fs_f_open_file_write_to_dir_stub(const char* filename, [[maybe_unused]] const char* dir,
