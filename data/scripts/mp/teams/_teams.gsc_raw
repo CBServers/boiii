@@ -314,6 +314,9 @@ function get_team_balance()
 
 	for ( i = 0; i < players.size; i++ )
 	{
+		if ( players[i] util::is_bot() )
+			continue;
+
 		if ( ( isdefined( players[i].pers["team"] ) ) && ( players[i].pers["team"] == "allies" ) )
 			level.team["allies"]++;
 		else if ( ( isdefined( players[i].pers["team"] ) ) && ( players[i].pers["team"] == "axis" ) )
@@ -339,7 +342,7 @@ function balance_teams()
 
 	for ( i = 0; i < players.size; i++ )
 	{
-		if ( !isdefined( players[i].pers["teamTime"] ) )
+		if ( !isdefined( players[i].pers["teamTime"] ) || players[i] util::is_bot() )
 			continue;
 
 		if ( ( isdefined( players[i].pers["team"] ) ) && ( players[i].pers["team"] == "allies" ) )
@@ -419,6 +422,9 @@ function balance_teams()
 
 		for ( i = 0; i < players.size; i++ )
 		{
+			if ( players[i] util::is_bot() )
+				continue;
+
 			if ( ( isdefined( players[i].pers["team"] ) ) && ( players[i].pers["team"] == "allies" ) )
 				AlliedPlayers[AlliedPlayers.size] = players[i];
 			else if ( ( isdefined( players[i].pers["team"] ) ) && ( players[i].pers["team"] == "axis" ) )
