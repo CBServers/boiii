@@ -3,6 +3,7 @@
 #include "server_list.hpp"
 
 #include "game/game.hpp"
+#include <game/utils.hpp>
 
 #include <utils/string.hpp>
 #include <utils/concurrency.hpp>
@@ -17,6 +18,9 @@ namespace server_list
 	namespace
 	{
 		utils::hook::detour lua_server_info_to_table_hook;
+
+		const game::dvar_t* master_server_ip;
+		const game::dvar_t* master_server_port;
 
 		struct state
 		{
@@ -138,7 +142,9 @@ namespace server_list
 
 	bool get_master_server(game::netadr_t& address)
 	{
-		address = network::address_from_string("master.ezz.lol:20810");
+		const auto* ip_string = master_server_ip->current.value.string;
+		const auto* port_string = master_server_port->current.value.string;
+		address = network::address_from_string(utils::string::va("%s:%s", ip_string, port_string));
 		return address.type != game::NA_BAD;
 	}
 
@@ -229,6 +235,8 @@ namespace server_list
 			scheduler::once([]
 			{
 				read_favorite_servers();
+				master_server_ip = game::register_dvar_string("masterServerIP", "master.cbservers.xyz", game::DVAR_NONE, "IP of the destination master server to connect to");
+				master_server_port = game::register_dvar_string("masterServerPort", "20810", game::DVAR_NONE, "Port of the destination master server to connect to");
 			}, scheduler::main);
 		}
 
