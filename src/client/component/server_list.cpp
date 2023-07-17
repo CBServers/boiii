@@ -203,7 +203,7 @@ namespace server_list
 		{
 			scheduler::once([]
 			{
-				master_server_ip = game::register_dvar_string("masterServerIP", "master.cbservers.xyz", game::DVAR_NONE, "IP of the destination master server to connect to");
+				master_server_ip = game::register_dvar_string("masterServerIP", "master.ezz.lol", game::DVAR_NONE, "IP of the destination master server to connect to");
 				master_server_port = game::register_dvar_string("masterServerPort", "20810", game::DVAR_NONE, "Port of the destination master server to connect to");
 			}, scheduler::pipeline::main);
 
