@@ -1,7 +1,6 @@
-[![build](https://img.shields.io/github/actions/workflow/status/momo5502/boiii/build.yml?branch=main&label=Build&logo=github)](https://github.com/momo5502/boiii/actions)
-[![bugs](https://img.shields.io/github/issues/momo5502/boiii/bug?label=Bugs)](https://github.com/momo5502/boiii/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
-[![github](https://img.shields.io/badge/GitHub-support-c96198.svg?logo=github)](https://github.com/sponsors/momo5502)
-[![patreon](https://img.shields.io/badge/Patreon-support-red.svg?logo=patreon)](https://www.patreon.com/xlabsproject)
+[![build](https://img.shields.io/github/actions/workflow/status/CBServers/boiii/build.yml?branch=main&label=Build&logo=github)](https://github.com/CBServers/boiii/actions)
+[![bugs](https://img.shields.io/github/issues/CBServers/boiii/bug?label=Bugs)](https://github.com/CBServers/boiii/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
+[![website](https://img.shields.io/badge/CBServers-Website-blue)](https://cbservers.xyz)
 
 
 # What is BOIII ☄️
@@ -18,6 +17,7 @@ The Steam version of Black Ops 3 is required to be owned and installed for BOIII
 
 ## Credits
 
+- Thanks to <a href="https://github.com/momo5502">@momo5502</a> and orignal contributors for a working BO3 Client
 - Thanks to <a href="https://github.com/shiversoftdev">@shiversoftdev</a> for providing the fixes from his <a href="https://github.com/shiversoftdev/t7patch">community patch</a>
 
 ## Disclaimer
@@ -26,4 +26,3 @@ This software has been created purely for the purposes of
 academic research. It is not intended to be used to harm
 others. Project maintainers are not responsible or
 liable for misuse of the software. Use responsibly.
-
