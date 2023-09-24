@@ -26,7 +26,8 @@ body:
       label: BOIII Version
       description: "What version of BOIII are you reporting this bug for?"
       options:
-        - v0.0.1 (Latest)
+        - v0.0.2 (Latest)
+        - v0.0.1
     validations:
       required: true
   - type: dropdown
