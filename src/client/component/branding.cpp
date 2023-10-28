@@ -6,13 +6,21 @@
 #include "scheduler.hpp"
 
 #include <utils/hook.hpp>
+#include <game/utils.hpp>
 
 namespace branding
 {
 	namespace
 	{
+		const game::dvar_t* ui_showBranding;
+
 		void draw_branding()
 		{
+			if (!ui_showBranding->current.value.enabled && !game::Com_IsRunningUILevel())
+			{
+				return;
+			}
+
 			constexpr auto x = 4;
 			constexpr auto y = 0;
 			constexpr auto scale = 0.45f;
@@ -36,6 +44,7 @@ namespace branding
 	{
 		void post_unpack() override
 		{
+			ui_showBranding = game::register_dvar_bool("ui_showBranding", false, game::DVAR_NONE, "Show BOIII branding at the top left in-game");
 			scheduler::loop(draw_branding, scheduler::renderer);
 
 			// Change window title prefix
