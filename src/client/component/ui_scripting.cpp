@@ -7,6 +7,7 @@
 #include "command.hpp"
 #include "ui_scripting.hpp"
 #include "scheduler.hpp"
+#include "getinfo.hpp"
 
 #include <utils/io.hpp>
 #include <utils/hook.hpp>
@@ -267,7 +268,7 @@ namespace ui_scripting
 		{
 			cl_first_snapshot_hook.invoke(a1);
 
-			if (game::Com_IsRunningUILevel() || doneFirstSnapshot)
+			if (game::Com_IsRunningUILevel() || (doneFirstSnapshot && getinfo::is_host()))
 			{
 				return;
 			}
