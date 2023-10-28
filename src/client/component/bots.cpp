@@ -22,7 +22,7 @@ namespace bots
 
 		std::vector<bot_name> load_bots_names()
 		{
-			std::vector<bot_name> bot_names =
+			std::vector<bot_name> default_bot_names =
 			{
 				{"momo5502", "IW5x"},
 				{"Jasmin", "<3"},
@@ -38,8 +38,10 @@ namespace bots
 			std::string buffer;
 			if (!utils::io::read_file("boiii/bots.txt", &buffer) || buffer.empty())
 			{
-				return bot_names;
+				return default_bot_names; // Only use default names if bots.txt donen't exist/is empty
 			}
+
+			std::vector<bot_name> bot_names = {};
 
 			auto data = utils::string::split(buffer, '\n');
 			for (auto& entry : data)
