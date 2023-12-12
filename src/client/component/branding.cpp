@@ -36,7 +36,7 @@ namespace branding
 
 		const char* get_ingame_console_prefix_stub()
 		{
-			return "BOIII> ";
+			return "BOIII: " VERSION "> ";
 		}
 	}
 
