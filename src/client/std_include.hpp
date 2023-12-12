@@ -67,6 +67,7 @@
 #include <cassert>
 #include <cstring>
 #include <cctype>
+#include <climits>
 
 #include <array>
 #include <atomic>

@@ -1,6 +1,7 @@
 #include <std_include.hpp>
 #include "loader/component_loader.hpp"
 #include "game/game.hpp"
+#include "game/utils.hpp"
 
 #include "game_event.hpp"
 
@@ -150,6 +151,12 @@ namespace script
 			if (const auto game_type = get_game_type_specific_folder(); game_type.has_value())
 			{
 				load("custom_scripts" / game_type.value(), true);
+			}
+
+			const std::filesystem::path mapname = game::get_dvar_string("mapname");
+			if (!mapname.empty())
+			{
+				load("custom_scripts" / mapname, true);
 			}
 		}
 
