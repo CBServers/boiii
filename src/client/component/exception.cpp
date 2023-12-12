@@ -68,15 +68,19 @@ namespace exception
 
 		void display_error_dialog()
 		{
-			const std::string error_str = utils::string::va("Fatal error (0x%08X) at 0x%p (0x%p).\n"
-			                                                "A minidump has been written.\n",
-			                                                exception_data.code, exception_data.address,
-				                                            game::derelocate(reinterpret_cast<uint64_t>(exception_data.address)));
-
 			utils::thread::suspend_other_threads();
-			show_mouse_cursor();
 
-			game::show_error(error_str.data(), "BOIII ERROR");
+			if (!game::is_server())
+			{
+				const std::string error_str = utils::string::va("Fatal error (0x%08X) at 0x%p (0x%p).\n"
+					"A minidump has been written.\n",
+					exception_data.code, exception_data.address,
+					game::derelocate(reinterpret_cast<uint64_t>(exception_data.address)));
+
+				show_mouse_cursor();
+				game::show_error(error_str.data(), "BOIII ERROR");
+			}
+
 			TerminateProcess(GetCurrentProcess(), exception_data.code);
 		}
 
