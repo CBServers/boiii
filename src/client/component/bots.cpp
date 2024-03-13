@@ -70,6 +70,11 @@ namespace bots
 				bot_names.emplace_back(entry, clan_abbrev);
 			}
 
+			if (bot_names.empty())
+			{
+				return default_bot_names;
+			}
+
 			return bot_names;
 		}
 
