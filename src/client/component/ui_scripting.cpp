@@ -347,12 +347,11 @@ namespace ui_scripting
 		{
 			if (!unsafe_function_called_message_shown)
 			{
-				auto state = get_globals();
 				// TODO: Is it possible to do this with a confirm dialog? Doing this in LUI seems unsafe to me because mods will be able to change this aswell
-				state["LuaUtils"]["ShowMessageDialog"](
-					0, 0,
-					"The map/mod you are playing tried to run code that can be unsafe. This can include writing or reading files on your system, accessing environment variables, running system commands or loading a dll. These are usually used for storing data across games, integrating third party software like Discord or fetching data from a server to make the gameplay for dynamic.\nThis can also cause a lot of harm by the wrong people.\n\nIf you trust this map/mod and want to enable these features, restart Black Ops 3 with the -unsafe-lua commandline argument.",
-					"Unsafe lua function called");
+				show_message_dialog(
+					"Unsafe lua function called",
+					"The map/mod you are playing tried to run code that can be unsafe. This can include writing or reading files on your system, accessing environment variables, running system commands or loading a dll. These are usually used for storing data across games, integrating third party software like Discord or fetching data from a server to make the gameplay for dynamic.\nThis can also cause a lot of harm by the wrong people.\n\nIf you trust this map/mod and want to enable these features, restart Black Ops 3 with the -unsafe-lua commandline argument."
+				);
 				unsafe_function_called_message_shown = true;
 			}
 
@@ -417,6 +416,12 @@ namespace ui_scripting
 
 			utils::hook::jump(0x141D299C0_g, lua_unsafe_function_stub); // package_loadlib
 		}
+	}
+
+	void show_message_dialog(const std::string& title, const std::string& message)
+	{
+		auto state = get_globals();
+		state["LuaUtils"]["ShowMessageDialog"](0, 0, message.data(), title.data());
 	}
 
 	int main_handler(game::hks::lua_State* state)

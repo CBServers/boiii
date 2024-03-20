@@ -5,6 +5,9 @@
 #include "steam_proxy.hpp"
 #include "command.hpp"
 
+#include "game/ui_scripting/execution.hpp"
+#include "ui_scripting.hpp"
+
 #include <utils/nt.hpp>
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
@@ -84,6 +87,10 @@ namespace name
 				}
 
 				update_player_name(params[1]);
+				ui_scripting::show_message_dialog(
+					"Name Updated",
+					"Successfully updated player name. Please restart your game for changes to take effect."
+				);
 			});
 		}
 

@@ -44,4 +44,6 @@ namespace ui_scripting
 
 	template <typename F>
 	game::hks::cclosure* convert_function(F f);
+
+	void show_message_dialog(const std::string& title, const std::string& message);
 }
