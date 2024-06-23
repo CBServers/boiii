@@ -2,13 +2,24 @@
 [![bugs](https://img.shields.io/github/issues/CBServers/boiii/bug?label=Bugs)](https://github.com/CBServers/boiii/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
 [![website](https://img.shields.io/badge/CBServers-Website-blue)](https://cbservers.xyz)
 
+# BOIII: Client
+This is a fork of the orginal BOIII Client.
 
-# What is BOIII ☄️
+Originally developed by [momo5502](https://github.com/momo5502) and [X Labs](https://xlabs.dev/).
 
-BOIII is a game modification for Call of Duty: Black Ops 3.  
-The Steam version of Black Ops 3 is required to be owned and installed for BOIII to work. You can get it from <a href="https://store.steampowered.com/app/311210/Call_of_Duty_Black_Ops_III/">here</a>.
+Thanks to all the original contributors.
 
 <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeSXYzQITJrcjiifN1nqX1fsVE7VwLZ3vl2g&usqp=CAU">
+
+## Download
+
+- **[Click here to get the latest release](https://github.com/CBServers/updater/raw/main/updater/boiii/boiii.exe)**
+- **You will need to drop this in your Call of Duty: Black Ops 3 folder. If you don't have Call of Duty: Black Ops 3, get those game files first.**
+- The client is still in an early stage. It will have bugs!
+  
+## What is BOIII ☄️
+
+BOIII is a game modification for Call of Duty: Black Ops 3.  
 
 ## Writeups & Articles
 
