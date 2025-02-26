@@ -133,6 +133,23 @@ namespace utils::properties
 		return appdata;
 	}
 
+	std::filesystem::path get_key_path()
+	{
+		PWSTR path;
+		if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path)))
+		{
+			throw std::runtime_error("Failed to read APPDATA path!");
+		}
+
+		auto _ = utils::finally([&path]
+		{
+			CoTaskMemFree(path);
+		});
+
+		static auto appdata = std::filesystem::path(path) / "cbservers";
+		return appdata;
+	}
+
 	std::unique_lock<named_mutex> lock()
 	{
 		static named_mutex mutex{"boiii-properties-lock"};
