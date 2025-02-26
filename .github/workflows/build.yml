@@ -25,7 +25,7 @@ jobs:
           - Release
     steps:
       - name: Check out files
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4.2.0
         with:
           submodules: true
           fetch-depth: 0
@@ -33,7 +33,7 @@ jobs:
           lfs: false
 
       - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v1.3.1
+        uses: microsoft/setup-msbuild@v2
 
       - name: Generate project files
         run: tools/premake5 vs2022 --no-check
@@ -46,7 +46,7 @@ jobs:
 
       - name: Upload ${{matrix.configuration}} binary
         if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} Binary
           path: |
@@ -54,7 +54,7 @@ jobs:
       
       - name: Upload ${{matrix.configuration}} extension artifact
         if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} Extension
           path: |
@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload ${{matrix.configuration}} data artifacts
         if: matrix.configuration == 'Release' && github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: ${{matrix.configuration}} data artifacts
           path: |
@@ -75,17 +75,17 @@ jobs:
     if: github.repository_owner == 'CBServers' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     steps:
       - name: Download Release binaries
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.8
         with:
           name: Release Binary
 
       - name: Download extension artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.8
         with:
           name: Release Extension
 
       - name: Download Release data artifacts
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.8
         with:
           name: Release data artifacts
           path: data
