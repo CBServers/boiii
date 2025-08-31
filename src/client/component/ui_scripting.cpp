@@ -420,8 +420,11 @@ namespace ui_scripting
 
 	void show_message_dialog(const std::string& title, const std::string& message)
 	{
-		auto state = get_globals();
-		state["LuaUtils"]["ShowMessageDialog"](0, 0, message.data(), title.data());
+		scheduler::once([=]
+		{
+			auto state = get_globals();
+			state["LuaUtils"]["ShowMessageDialog"](0, 0, message.data(), title.data());
+		}, scheduler::pipeline::renderer);
 	}
 
 	int main_handler(game::hks::lua_State* state)

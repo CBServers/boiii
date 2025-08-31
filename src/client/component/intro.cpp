@@ -3,6 +3,7 @@
 #include "game/game.hpp"
 
 #include <utils/hook.hpp>
+#include <utils/flags.hpp>
 
 namespace intro
 {
@@ -27,11 +28,14 @@ namespace intro
 	public:
 		void post_unpack() override
 		{
-			cinematic_start_playback_hook.create(game::Cinematic_StartPlayback, ccc);
+			if (utils::flags::has_flag("nointro"))
+			{
+				cinematic_start_playback_hook.create(game::Cinematic_StartPlayback, ccc);
+			}
 		}
 	};
 }
 
-#ifdef DEV_BUILD
+//#ifdef DEV_BUILD
 REGISTER_COMPONENT(intro::component)
-#endif
+//#endif

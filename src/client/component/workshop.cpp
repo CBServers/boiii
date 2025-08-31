@@ -5,6 +5,9 @@
 #include "game/game.hpp"
 #include "game/utils.hpp"
 #include "command.hpp"
+#include "fastdl.hpp"
+#include "party.hpp"
+#include "scheduler.hpp"
 
 #include <utils/hook.hpp>
 #include <utils/string.hpp>
@@ -12,6 +15,8 @@
 
 namespace workshop
 {
+	std::vector<custom_usermap_data> custom_usermaps_pool;
+
 	namespace
 	{
 		utils::hook::detour setup_server_map_hook;
@@ -23,6 +28,20 @@ namespace workshop
 			{
 				const auto& mod_data = game::modsPool[i];
 				if (mod_data.publisherId == pub_id)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		bool has_usermap(const std::string& pub_id)
+		{
+			for (unsigned int i = 0; i < *game::usermapsCount; ++i)
+			{
+				const auto& usermap_data = game::usermapsPool[i];
+				if (usermap_data.publisherId == pub_id)
 				{
 					return true;
 				}
@@ -80,11 +99,32 @@ namespace workshop
 				return;
 			}
 
+			// Store in game's structure (may get overwritten on dedi)
 			utils::string::copy(item.title, doc["Title"].GetString());
 			utils::string::copy(item.description, doc["Description"].GetString());
 			utils::string::copy(item.folderName, doc["FolderName"].GetString());
 			utils::string::copy(item.publisherId, doc["PublisherID"].GetString());
 			item.publisherIdInteger = std::strtoul(item.publisherId, nullptr, 10);
+
+			// Store in our custom pool (fix for being overwritten on dedi)
+			custom_usermap_data custom_data;
+			custom_data.folder_name = doc["FolderName"].GetString();
+			custom_data.publisher_id = doc["PublisherID"].GetString();
+			custom_data.absolute_path = base_path;
+			custom_data.title = doc["Title"].GetString();
+			custom_data.description = doc["Description"].GetString();
+
+			auto it = std::find_if(custom_usermaps_pool.begin(), custom_usermaps_pool.end(),
+				[&](const custom_usermap_data& data) { return data.folder_name == custom_data.folder_name; });
+			
+			if (it != custom_usermaps_pool.end())
+			{
+				*it = custom_data; // Update existing
+			}
+			else
+			{
+				custom_usermaps_pool.push_back(custom_data); // Add new
+			}
 		}
 
 		void load_usermap_content_stub(void* usermaps_count, int type)
@@ -218,6 +258,35 @@ namespace workshop
 		}
 
 		return {};
+	} 
+
+	std::string get_usermap_publisher_id_dedi(const std::string& zone_name)
+	{
+		//for some reason, other method doesn't return id on dedis
+		for (const auto& usermap_data : custom_usermaps_pool)
+		{
+			if (usermap_data.folder_name == zone_name)
+			{
+				return usermap_data.publisher_id;
+			}
+		}
+
+		return {};
+	}
+
+	std::string get_usermap_path(const std::string& mapname, const std::string& pub_id)
+	{
+		for (unsigned int i = 0; i < *game::usermapsCount; ++i)
+		{
+			const auto& usermap_data = game::usermapsPool[i];
+
+			if (usermap_data.publisherId == pub_id)
+			{
+				return usermap_data.absolutePathZoneFiles;
+			}
+		}
+
+		return "usermaps/" + mapname;
 	}
 
 	std::string get_mod_publisher_id()
@@ -238,13 +307,48 @@ namespace workshop
 		return loaded_mod_id;
 	}
 
-	bool check_valid_usermap_id(const std::string& mapname, const std::string& pub_id)
+	bool check_valid_usermap_id(const std::string& mapname, const std::string& pub_id, const std::string& base_url)
 	{
-		if (!game::DB_FileExists(mapname.data(), 0) && pub_id.empty())
+		if (!pub_id.empty()) //Server is on a custom map
 		{
+			if (has_usermap(pub_id))
+			{
+				return true;
+			}
+
+			if (!base_url.empty())
+			{
+				fastdl::download_context context{};
+				context.mapname = mapname;
+				context.map_path = get_usermap_path(mapname, pub_id);
+				context.base_url = base_url;
+				context.success_callback = []()
+				{
+					scheduler::once([]
+					{
+						game::reloadUserContent();
+						party::requery_current_server();
+					}, scheduler::main);
+				};
+
+				printf("Server is on a custom map, attemping fastDL for %s in %s\n", context.mapname.data(), context.map_path.data());
+
+				fastdl::start_map_download(context);
+				return false; // Return false to prevent connection until download completes
+			}
+
 			game::UI_OpenErrorPopupWithMessage(0, 0x100,
 				utils::string::va("Can't find usermap: %s!\nMake sure you're subscribed to the workshop item.", mapname.data()));
 			return false;
+		}
+		else
+		{
+			if (!game::DB_FileExists(mapname.data(), 0))
+			{
+				game::UI_OpenErrorPopupWithMessage(0, 0x100,
+					utils::string::va("Can't find usermap: %s!\nMake sure you're subscribed to the workshop item.", mapname.data()));
+				return false;
+			}
 		}
 
 		return true;

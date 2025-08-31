@@ -8,6 +8,8 @@
 #include "scheduler.hpp"
 #include "workshop.hpp"
 #include "profile_infos.hpp"
+#include "fastdl.hpp"
+
 
 #include <utils/hook.hpp>
 #include <utils/string.hpp>
@@ -189,6 +191,8 @@ namespace party
 				return;
 			}
 
+			const auto usermap_id = info.get("usermapId");
+			const auto base_url = info.get("sv_wwwBaseUrl");
 			const auto mod_id = info.get("modId");
 
 			//const auto hostname = info.get("sv_hostname");
@@ -198,9 +202,7 @@ namespace party
 
 			scheduler::once([=]
 			{
-				const auto usermap_id = workshop::get_usermap_publisher_id(mapname);
-
-				if (workshop::check_valid_usermap_id(mapname, usermap_id) &&
+				if (workshop::check_valid_usermap_id(mapname, usermap_id, base_url) &&
 					workshop::check_valid_mod_id(mod_id))
 				{
 					if (is_connecting_to_dedi)
@@ -211,11 +213,21 @@ namespace party
 					//connect_to_session(target, hostname, xuid, mode);
 					connect_to_lobby_with_mode(target, mode, mapname, gametype, usermap_id, mod_id);
 				}
+				else
+				{
+					cleanup_queried_servers();
+				}
 			}, scheduler::main);
 		}
 
 		void connect_stub(const char* address)
 		{
+			if (fastdl::is_downloading())
+			{
+				game::UI_OpenErrorPopupWithMessage(0, 0x100, "A map download is currently in progress. Please wait...");
+				return;
+			}
+
 			if (address)
 			{
 				const auto target = network::address_from_string(address);
@@ -269,12 +281,13 @@ namespace party
 				query.callback(true, query.host, info, static_cast<uint32_t>(ping_ms));
 			}
 		}
+	}
 
-		void cleanup_queried_servers()
-		{
-			std::vector<server_query> removed_queries{};
+	void cleanup_queried_servers()
+	{
+		std::vector<server_query> removed_queries{};
 
-			get_server_queries().access([&](std::vector<server_query>& server_queries)
+		get_server_queries().access([&](std::vector<server_query>& server_queries)
 			{
 				size_t sent_queries = 0;
 
@@ -303,11 +316,10 @@ namespace party
 				}
 			});
 
-			const utils::info_string empty{};
-			for (const auto& query : removed_queries)
-			{
-				query.callback(false, query.host, empty, 0);
-			}
+		const utils::info_string empty{};
+		for (const auto& query : removed_queries)
+		{
+			query.callback(false, query.host, empty, 0);
 		}
 	}
 
@@ -322,6 +334,14 @@ namespace party
 		{
 			server_queries.emplace_back(std::move(query));
 		});
+	}
+
+	void requery_current_server()
+	{
+		if (connect_host.type != game::NA_BAD)
+		{
+			query_server(connect_host, handle_connect_query_response);
+		}
 	}
 
 	game::netadr_t get_connected_server()

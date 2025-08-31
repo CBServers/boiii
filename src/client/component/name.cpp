@@ -81,15 +81,16 @@ namespace name
 		{
 			command::add("name", [](const command::params& params)
 			{
-				if (params.size() != 2)
+				if (params.size() < 2)
 				{
 					return;
 				}
 
-				update_player_name(params[1]);
+				const auto name = params[1];
+				update_player_name(name);
 				ui_scripting::show_message_dialog(
 					"Name Updated",
-					"Successfully updated player name. Please restart your game for changes to take effect."
+					utils::string::va("Successfully updated player name: %s\nPlease restart your game for changes to take effect.", name)
 				);
 			});
 		}

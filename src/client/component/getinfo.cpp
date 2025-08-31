@@ -110,9 +110,11 @@ namespace getinfo
 				info.set("hc", std::to_string(game::Com_GametypeSettings_GetUInt("hardcoremode", false)));
 				info.set("modName", workshop::get_mod_resized_name());
 				info.set("modId", workshop::get_mod_publisher_id());
+				info.set("usermapId", workshop::get_usermap_publisher_id_dedi(game::get_dvar_string("mapname")));
+				info.set("sv_wwwBaseUrl", game::get_dvar_string("sv_wwwBaseUrl"));
 				info.set("rounds_played", std::to_string(*game::level_rounds_played));
 				info.set("shortversion", SHORTVERSION);
-
+				
 				network::send(target, "infoResponse", info.build(), '\n');
 			});
 		}
