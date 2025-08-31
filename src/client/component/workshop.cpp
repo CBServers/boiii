@@ -320,6 +320,7 @@ namespace workshop
 			{
 				fastdl::download_context context{};
 				context.mapname = mapname;
+				context.pub_id = pub_id;
 				context.map_path = get_usermap_path(mapname, pub_id);
 				context.base_url = base_url;
 				context.success_callback = []()

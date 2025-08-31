@@ -306,16 +306,22 @@ namespace fastdl
 					return;
 				}
 
+				size_t total_download_size = 0;
+				for (const auto& file : outdated_files)
+				{
+					total_download_size += file.size;
+				}
+				const double size_gb = static_cast<double>(total_download_size) / (1024.0 * 1024.0 * 1024.0);
+
 				ui_scripting::show_message_dialog("Missing required map!", "You don't have this map! Would you like download it?\nPlease select Yes or No in the popup window.");
 				const auto result = MessageBoxA(nullptr, 
-					utils::string::va("You don't have this map! Would you like download it?\nMap: %s\nFiles to download: %zu of %zu", 
-						context.mapname.data(), outdated_files.size(), files.size()),
-					"BOIII FastDL - Map Update", MB_YESNO | MB_ICONQUESTION);
+					utils::string::va("You don't have this map! Would you like download it?\nMap: %s\nDownload size: %.2f GB", 
+						context.mapname.data(), size_gb),
+					"BOIII FastDL - Map Download", MB_YESNO | MB_ICONQUESTION);
 
 				if (result != IDYES)
 				{
-					download_active = false;
-					return;
+					throw download_is_cancelled();
 				}
 
 				ui_scripting::show_message_dialog("Downloading map", "Downloading missing map files. Please wait...");
