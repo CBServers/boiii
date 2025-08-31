@@ -340,7 +340,7 @@ namespace fastdl
 				download_active = false;
 				show_ingame_error("Map download was cancelled.");
 			}
-			catch (const std::exception& e)
+			catch (...)
 			{
 				download_active = false;
 				show_ingame_error("Failed to download map files.");
