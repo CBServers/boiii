@@ -7,7 +7,6 @@
 #include "game/ui_scripting/execution.hpp"
 #include "ui_scripting.hpp"
 
-
 #include <utils/hook.hpp>
 #include <utils/string.hpp>
 #include <utils/io.hpp>
@@ -36,7 +35,7 @@ namespace fastdl
 
 		bool is_map_file(const std::string& file_name)
 		{
-			return (file_name.ends_with(".pak") || file_name.ends_with(".ff"));
+			return (file_name.ends_with(".xpak") || file_name.ends_with(".ff"));
 		}
 
 		void show_ingame_error(const std::string& error)
@@ -122,25 +121,71 @@ namespace fastdl
 			}
 
 			const auto file_url = context.base_url + "/usermaps/" + context.mapname + "/" + file.name;
-			const auto data = utils::http::get_data(file_url, {}, [&](const size_t progress)
-			{
-				ui.file_progress(file, progress);
-			});
-
-			if (!data || (data->size() != file.size))
-			{
-				throw std::runtime_error(utils::string::va("Failed to download: %s", file_url.data()));
-			}
-
-			if (!is_map_file(file.name) && get_hash(*data) != file.hash)
-			{
-				throw std::runtime_error(utils::string::va("Failed to download: %s", file_url.data()));
-			}
-
 			const auto local_path = context.map_path + "/" + file.name;
-			if (!utils::io::write_file(local_path, *data, false))
+
+			// Create empty file first
+			std::string empty{};
+			if (!utils::io::write_file(local_path, empty, false))
 			{
-				throw std::runtime_error(utils::string::va("Failed to write: %s", local_path.data()));
+				throw std::runtime_error(utils::string::va("Failed to write file: %s", local_path.data()));
+			}
+
+			// Open file stream for writing
+			std::ofstream ofs(local_path, std::ios::binary);
+			if (!ofs)
+			{
+				throw std::runtime_error(utils::string::va("Failed to open file: %s", local_path.data()));
+			}
+
+			// Download with streaming
+			const auto result_code = utils::http::get_data_stream(file_url, {}, 
+				[&](size_t progress)
+				{
+					if (download_cancelled)
+					{
+						return;
+					}
+					ui.file_progress(file, progress);
+				},
+				[&](const char* chunk, size_t size)
+				{
+					if (chunk && size > 0 && !download_cancelled)
+					{
+						ofs.write(chunk, size);
+					}
+				});
+
+			ofs.close();
+
+			if (download_cancelled)
+			{
+				return;
+			}
+
+			if (result_code != CURLE_OK)
+			{
+				throw std::runtime_error(utils::string::va("Failed to download: %s - curl error %d", file_url.data(), result_code));
+			}
+
+			// Verify file size
+			if (utils::io::file_size(local_path) != file.size)
+			{
+				throw std::runtime_error(utils::string::va("Downloaded file size mismatch: %s", local_path.data()));
+			}
+
+			// Verify hash for non-map files (skip hash verification for .pak/.ff files as it takes too long)
+			if (!is_map_file(file.name))
+			{
+				std::string data{};
+				if (!utils::io::read_file(local_path, &data))
+				{
+					throw std::runtime_error(utils::string::va("Failed to read downloaded file: %s", local_path.data()));
+				}
+
+				if (get_hash(data) != file.hash)
+				{
+					throw std::runtime_error(utils::string::va("Downloaded file hash mismatch: %s", local_path.data()));
+				}
 			}
 		}
 
@@ -236,21 +281,28 @@ namespace fastdl
 		{
 			const auto local_path = map_path + "/" + file.name;
 			
-			std::string data{};
-			if (!utils::io::read_file(local_path, &data))
+			if (!utils::io::file_exists(local_path))
 			{
 				return true;
 			}
 
-			if (data.size() != file.size)
+			if (utils::io::file_size(local_path) != file.size)
 			{
 				return true;
 			}
 
 			if (!is_map_file(file.name)) //skip hash verifcation since it takes too long
 			{
-				const auto hash = get_hash(data);
-				return hash != file.hash;
+				std::string data{};
+				if (!utils::io::read_file(local_path, &data))
+				{
+					return true;
+				}
+
+				if (get_hash(data) != file.hash)
+				{
+					return true;
+				}
 			}
 
 			return false;
@@ -277,12 +329,6 @@ namespace fastdl
 			{
 				download_active = true;
 				download_cancelled = false;
-
-				// Create map directory
-				if (!utils::io::directory_exists(context.map_path))
-				{
-					utils::io::create_directory(context.map_path);
-				}
 
 				const auto [files, workshop_json] = get_manifest_files(context.base_url, context.mapname);
 				if (files.empty() || workshop_json.name.empty())
@@ -325,6 +371,13 @@ namespace fastdl
 				}
 
 				ui_scripting::show_message_dialog("Downloading map", "Downloading missing map files. Please wait...");
+
+				// Create map directory
+				if (!utils::io::directory_exists(context.map_path))
+				{
+					utils::io::create_directory(context.map_path);
+				}
+				
 				fastdl_ui ui{};
 				ui.update_files(outdated_files);
 				download_files(outdated_files, context, ui);
@@ -346,10 +399,10 @@ namespace fastdl
 				download_active = false;
 				show_ingame_error("Map download was cancelled.");
 			}
-			catch (...)
+			catch (const std::exception& e)
 			{
 				download_active = false;
-				show_ingame_error("Failed to download map files.");
+				show_ingame_error(e.what());
 			}
 		}
 	}

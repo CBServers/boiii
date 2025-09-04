@@ -1,4 +1,5 @@
 .vs
 .vscode
 build/
-usergenerate.bat
+.claude/settings.local.json
+CLAUDE.md
