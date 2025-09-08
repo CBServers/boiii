@@ -391,6 +391,13 @@ namespace workshop
 		}
 	}
 
+	void com_error_missing_map_stub(const char* file, int line, int code, const char* fmt, ...)
+	{
+		scheduler::once(party::requery_current_server, scheduler::main, 10s); //retry connecting to server to trigger fastDL
+
+		game::Com_Error_(file, line, code, "%s", "Missing map! Trying to reconnect to server...");
+	}
+
 	class component final : public generic_component
 	{
 	public:
@@ -416,6 +423,11 @@ namespace workshop
 			utils::hook::call(0x1420D6745_g, load_mod_content_stub);
 			utils::hook::call(0x14135CD84_g, has_workshop_item_stub);
 			setup_server_map_hook.create(0x14135CD20_g, setup_server_map_stub);
+
+			if (game::is_client())
+			{
+				utils::hook::call(0x14135CDA1_g, com_error_missing_map_stub);
+			}
 		}
 	};
 }
