@@ -17,6 +17,7 @@ namespace utils::io
 	bool directory_exists(const std::filesystem::path& directory);
 	bool directory_is_empty(const std::filesystem::path& directory);
 	void copy_folder(const std::filesystem::path& src, const std::filesystem::path& target);
+	void remove_folder(const std::filesystem::path& directory);
 
 	bool file_exists(const std::wstring& file);
 	bool write_file(const std::wstring& file, const std::string& data, bool append = false);

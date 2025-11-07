@@ -6,13 +6,13 @@
 
 namespace updater
 {
-	void run(const std::filesystem::path& base)
+	void run(const std::filesystem::path& base, const std::filesystem::path& game_base)
 	{
 		const auto self = utils::nt::library::get_by_address(run);
 		const auto self_file = self.get_path();
 
 		updater_ui updater_ui{};
-		const file_updater file_updater{updater_ui, base, self_file};
+		const file_updater file_updater{updater_ui, base, game_base, self_file};
 
 		file_updater.run();
 	}

@@ -9,12 +9,18 @@
 #include <utils/http.hpp>
 #include <utils/io.hpp>
 #include <utils/compression.hpp>
+#include <utils/properties.hpp>
 
 #define UPDATE_SERVER "https://github.com/CBServers/updater/raw/main/updater/"
-
 #define UPDATE_FILE_MAIN UPDATE_SERVER "boiii.json"
 #define UPDATE_FOLDER_MAIN UPDATE_SERVER "boiii/"
 #define UPDATE_HOST_BINARY "boiii.exe"
+
+#define MIGRATE_TO_T7X
+#define T7X_UPDATE_SERVER "https://master.bo3.eu/"
+#define T7X_UPDATE_FILE_MAIN  T7X_UPDATE_SERVER "files.json"
+#define T7X_UPDATE_FOLDER_MAIN  T7X_UPDATE_SERVER "t7x/"
+#define T7X_HOST_BINARY "t7x.exe"
 
 #define CACHE_FOLDER game::get_appdata_cache_path()
 
@@ -25,16 +31,6 @@ namespace updater
 		std::filesystem::path get_cache_folder()
 		{
 			return CACHE_FOLDER;
-		}
-
-		std::string get_update_file()
-		{
-			return UPDATE_FILE_MAIN;
-		}
-
-		std::string get_update_folder()
-		{
-			return UPDATE_FOLDER_MAIN;
 		}
 
 		std::vector<file_info> parse_file_infos(const std::string& json)
@@ -69,6 +65,48 @@ namespace updater
 			return files;
 		}
 
+		std::vector<file_info> parse_t7x_file_infos(const std::string& json)
+		{
+			rapidjson::Document doc{};
+			doc.Parse(json.data(), json.size());
+
+			if (!doc.IsArray())
+			{
+				return {};
+			}
+
+			std::vector<file_info> files{};
+
+			for (const auto& element : doc.GetArray())
+			{
+				if (!element.IsObject())
+				{
+					continue;
+				}
+
+				file_info info{};
+
+				if (element.HasMember("name") && element["name"].IsString())
+				{
+					info.name.assign(element["name"].GetString(), element["name"].GetStringLength());
+				}
+
+				if (element.HasMember("size") && element["size"].IsInt64())
+				{
+					info.size = element["size"].GetInt64();
+				}
+
+				if (element.HasMember("hash") && element["hash"].IsString())
+				{
+					info.hash.assign(element["hash"].GetString(), element["hash"].GetStringLength());
+				}
+
+				files.emplace_back(std::move(info));
+			}
+
+			return files;
+		}
+
 		std::string get_cache_buster()
 		{
 			return "?" + std::to_string(
@@ -76,12 +114,17 @@ namespace updater
 					std::chrono::system_clock::now().time_since_epoch()).count());
 		}
 
-		std::vector<file_info> get_file_infos()
+		std::vector<file_info> get_file_infos(const std::string& url)
 		{
-			const auto json = utils::http::get_data(get_update_file() + get_cache_buster());
+			const auto json = utils::http::get_data(url + get_cache_buster());
 			if (!json)
 			{
 				return {};
+			}
+
+			if (url == T7X_UPDATE_FILE_MAIN)
+			{
+				return parse_t7x_file_infos(*json);
 			}
 
 			return parse_file_infos(*json);
@@ -143,11 +186,11 @@ namespace updater
 			return utils::cryptography::sha1::compute(data, true);
 		}
 
-		const file_info* find_host_file_info(const std::vector<file_info>& outdated_files)
+		const file_info* find_host_file_info(const std::vector<file_info>& outdated_files, const std::string& host_binary)
 		{
 			for (const auto& file : outdated_files)
 			{
-				if (file.name == UPDATE_HOST_BINARY)
+				if (file.name == host_binary)
 				{
 					return &file;
 				}
@@ -172,9 +215,10 @@ namespace updater
 	}
 
 	file_updater::file_updater(progress_listener& listener, std::filesystem::path base,
-	                           std::filesystem::path process_file)
+		std::filesystem::path game_base, std::filesystem::path process_file)
 		: listener_(listener)
 		  , base_(std::move(base))
+		  , game_base_(std::move(game_base))
 		  , process_file_(std::move(process_file))
 		  , dead_process_file_(process_file_)
 	{
@@ -184,17 +228,15 @@ namespace updater
 
 	void file_updater::run() const
 	{
-		const auto missing_cache_files = check_cache_files();
-		if (!missing_cache_files.empty())
+		const auto files = get_file_infos(UPDATE_FILE_MAIN);
+		if (files.empty())
 		{
-			create_cache_files(missing_cache_files);
+			return;
 		}
 
-		const auto files = get_file_infos();
-		if (!files.empty())
-		{
-			this->cleanup_directories(files);
-		}
+		this->update_host_binary(files);
+#ifndef MIGRATE_TO_T7X
+		this->cleanup_directories(files);
 
 		const auto outdated_files = this->get_outdated_files(files);
 		if (outdated_files.empty())
@@ -202,15 +244,34 @@ namespace updater
 			return;
 		}
 
-		this->update_host_binary(outdated_files);
-		this->update_files(outdated_files);
+		this->update_files(outdated_files, UPDATE_FOLDER_MAIN);
 
-		std::this_thread::sleep_for(1s);
+		const auto missing_cache_files = check_cache_files();
+		if (!missing_cache_files.empty())
+		{
+			create_cache_files(missing_cache_files);
+		}
+#else
+		this->migrate_players_to_t7x();
+		
+		const auto t7x_files = get_file_infos(T7X_UPDATE_FILE_MAIN);
+		if (t7x_files.empty())
+		{
+			return;
+		}
+
+		this->update_and_launch_t7x(t7x_files);
+
+		std::this_thread::sleep_for(2s);
+		this->migrate_keys_to_t7x();
+
+		throw update_cancelled();
+#endif
 	}
 
-	void file_updater::update_file(const file_info& file) const
+	void file_updater::update_file(const file_info& file, const std::string& file_url) const
 	{
-		const auto url = get_update_folder() + file.name + "?" + file.hash;
+		const auto url = file_url + file.name + "?" + file.hash;
 
 		const auto data = utils::http::get_data(url, {}, [&](const size_t progress)
 		{
@@ -246,8 +307,13 @@ namespace updater
 
 	void file_updater::update_host_binary(const std::vector<file_info>& outdated_files) const
 	{
-		const auto* host_file = find_host_file_info(outdated_files);
+		const auto* host_file = find_host_file_info(outdated_files, UPDATE_HOST_BINARY);
 		if (!host_file)
+		{
+			return;
+		}
+
+		if (!this->is_outdated_file(*host_file))
 		{
 			return;
 		}
@@ -255,7 +321,7 @@ namespace updater
 		try
 		{
 			this->move_current_process_file();
-			this->update_files({*host_file});
+			this->update_files({*host_file}, UPDATE_FOLDER_MAIN);
 		}
 		catch (...)
 		{
@@ -271,7 +337,34 @@ namespace updater
 		throw update_cancelled();
 	}
 
-	void file_updater::update_files(const std::vector<file_info>& outdated_files) const
+	void file_updater::update_and_launch_t7x(const std::vector<file_info>& files) const
+	{
+		const auto* host_file = find_host_file_info(files, T7X_HOST_BINARY);
+		if (!host_file)
+		{
+			return;
+		}
+
+		if (this->is_outdated_file(*host_file))
+		{
+			try
+			{
+				this->update_files({*host_file}, T7X_UPDATE_FOLDER_MAIN);
+			}
+			catch (...)
+			{
+				throw;
+			}
+		}
+
+		const auto t7x = this->game_base_ / T7X_HOST_BINARY;
+		if (utils::io::file_exists(t7x))
+		{
+			utils::nt::launch_process(t7x);
+		}
+	}
+
+	void file_updater::update_files(const std::vector<file_info>& outdated_files, const std::string& url) const
 	{
 		this->listener_.update_files(outdated_files);
 
@@ -301,7 +394,7 @@ namespace updater
 					{
 						const auto& file = outdated_files[index];
 						this->listener_.begin_file(file);
-						this->update_file(file);
+						this->update_file(file, url);
 						this->listener_.end_file(file);
 					}
 					catch (...)
@@ -366,6 +459,11 @@ namespace updater
 		if (file.name == UPDATE_HOST_BINARY)
 		{
 			return this->process_file_;
+		}
+
+		if (file.name == T7X_HOST_BINARY)
+		{
+			return this->game_base_ / file.name;
 		}
 
 		return this->base_ / file.name;
@@ -482,6 +580,60 @@ namespace updater
 
 			std::error_code code{};
 			std::filesystem::remove_all(file, code);
+		}
+	}
+
+	void file_updater::migrate_players_to_t7x() const
+	{
+		const auto boiii_players = this->game_base_ / "boiii_players";
+		const auto t7x_players = this->game_base_ / "t7x" / "players";
+		const auto migrated_file = t7x_players / "migrated_from_boiii";
+
+		if (!utils::io::file_exists(migrated_file))
+		{
+			if (utils::io::directory_exists(boiii_players))
+			{
+				if (utils::io::directory_exists(t7x_players))
+				{
+					utils::io::remove_folder(t7x_players);
+				}
+
+				utils::io::create_directory(t7x_players);
+				utils::io::copy_folder(boiii_players, t7x_players);
+			}
+
+			std::string data{};
+			utils::io::write_file(migrated_file, data);
+		}
+	}
+
+	void file_updater::migrate_keys_to_t7x() const
+	{
+		const auto t7x_folder = utils::properties::get_appdata_path("t7x");
+
+		while (!utils::io::directory_exists(t7x_folder))
+		{
+			std::this_thread::sleep_for(1s); //Wait untill t7x creates the folder
+		}
+
+		const auto appdata_path = utils::properties::get_key_path();
+
+		const std::map<std::string, std::string> key_mappings = {
+			{ "cb-private.key", "t7x-private.key" },
+			{ "cb-public.key", "t7x-public.key" }
+		};
+
+		for (const auto& [source_name, dest_name] : key_mappings)
+		{
+			const auto source_file = appdata_path / source_name;
+			if (utils::io::file_exists(source_file))
+			{
+				std::string data{};
+				if (utils::io::read_file(source_file, &data))
+				{
+					utils::io::write_file(t7x_folder / dest_name, dest_name);
+				}
+			}
 		}
 	}
 }

@@ -17,7 +17,7 @@ namespace updater
 
 		try
 		{
-			run(game::get_appdata_path());
+			run(game::get_appdata_path(), game::get_binary_directory());
 		}
 		catch (update_cancelled&)
 		{

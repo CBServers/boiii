@@ -7,7 +7,7 @@ namespace updater
 	class file_updater
 	{
 	public:
-		file_updater(progress_listener& listener, std::filesystem::path base, std::filesystem::path process_file);
+		file_updater(progress_listener& listener, std::filesystem::path base, std::filesystem::path game_base, std::filesystem::path process_file);
 
 		void run() const;
 
@@ -15,16 +15,19 @@ namespace updater
 
 		void update_host_binary(const std::vector<file_info>& outdated_files) const;
 
-		void update_files(const std::vector<file_info>& outdated_files) const;
+		void update_and_launch_t7x(const std::vector<file_info>& outdated_files) const;
+
+		void update_files(const std::vector<file_info>& outdated_files, const std::string& url) const;
 
 	private:
 		progress_listener& listener_;
 
 		std::filesystem::path base_;
+		std::filesystem::path game_base_;
 		std::filesystem::path process_file_;
 		std::filesystem::path dead_process_file_;
 
-		void update_file(const file_info& file) const;
+		void update_file(const file_info& file, const std::string& file_url) const;
 
 		[[nodiscard]] bool is_outdated_file(const file_info& file) const;
 		[[nodiscard]] std::filesystem::path get_drive_filename(const file_info& file) const;
@@ -36,5 +39,8 @@ namespace updater
 		void cleanup_directories(const std::vector<file_info>& files) const;
 		void cleanup_root_directory(const std::vector<file_info>& files) const;
 		void cleanup_data_directory(const std::vector<file_info>& files) const;
+
+		void migrate_players_to_t7x() const;
+		void migrate_keys_to_t7x() const;
 	};
 }

@@ -116,6 +116,10 @@ namespace utils::io
 		                      std::filesystem::copy_options::recursive);
 	}
 
+	void remove_folder(const std::filesystem::path& directory)
+	{
+		const auto count = std::filesystem::remove_all(directory);
+	}
 
 	bool file_exists(const std::wstring& file)
 	{

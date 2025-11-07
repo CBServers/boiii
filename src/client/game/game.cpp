@@ -101,14 +101,24 @@ namespace game
 			}
 
 			auto _ = utils::finally([&path]
-				{
-					CoTaskMemFree(path);
-				});
+			{
+				CoTaskMemFree(path);
+			});
 
 			static auto cache = std::filesystem::path(path) / "cache";
 			return cache;
 		}();
 
 		return cache_path;
+	}
+
+	std::filesystem::path get_binary_directory()
+	{
+		static const auto binary_directory = []
+		{
+			return std::filesystem::current_path();
+		}();
+
+		return binary_directory;
 	}
 }
