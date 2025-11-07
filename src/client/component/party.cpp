@@ -340,6 +340,7 @@ namespace party
 	{
 		if (connect_host.type != game::NA_BAD)
 		{
+			profile_infos::clear_profile_infos();
 			query_server(connect_host, handle_connect_query_response);
 		}
 	}
