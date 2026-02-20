@@ -15,6 +15,7 @@
 #define UPDATE_FILE_MAIN UPDATE_SERVER "boiii.json"
 #define UPDATE_FOLDER_MAIN UPDATE_SERVER "boiii/"
 #define UPDATE_HOST_BINARY "boiii.exe"
+#define UPDATE_GAME_BINARY "BlackOps3.exe"
 
 #define CACHE_FOLDER game::get_appdata_cache_path()
 
@@ -366,6 +367,11 @@ namespace updater
 		if (file.name == UPDATE_HOST_BINARY)
 		{
 			return this->process_file_;
+		}
+
+		if (file.name == UPDATE_GAME_BINARY)
+		{
+			return this->process_file_.parent_path() / UPDATE_GAME_BINARY;
 		}
 
 		return this->base_ / file.name;

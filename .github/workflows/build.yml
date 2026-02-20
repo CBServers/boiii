@@ -90,22 +90,6 @@ jobs:
           name: Release data artifacts
           path: data
 
-      - name: Download hashing executable
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/CBServers/updater/releases/download/v1.0.0/update-hasher.exe" -OutFile "update-hasher.exe"
-
-      - name: Generate hashed.json
-        run: |
-          .\update-hasher.exe
-
-      - name: Move files to boiii folder and rename hashes
-        run: |
-          mkdir boiii
-          Move-Item -Path .\boiii.exe -Destination .\boiii\
-          Move-Item -Path .\ext.dll -Destination .\boiii\
-          Move-Item -Path .\data -Destination .\boiii\
-          mv hashed.json boiii.json
-
       - name: Clone updater
         run: |
           git config --global user.name 'CBServers'
@@ -115,13 +99,30 @@ jobs:
           $env:GIT_PASSWORD="${{ secrets.REPO_PAT }}"
           git clone https://$env:GIT_USERNAME:$env:GIT_PASSWORD@github.com/CBServers/updater.git
 
-      - name: Copy files to updater and cleanup
+      - name: Copy artifacts to updater boiii folder
         run: |
-          Copy-Item -Path .\boiii.json -Destination .\updater\updater\ -Force
-          Copy-Item -Path .\boiii\* -Destination .\updater\updater\boiii\ -Recurse -Force
-          Remove-Item -Path .\boiii.json -Force
-          Remove-Item -Path .\boiii -Recurse -Force
+          Copy-Item -Path .\boiii.exe -Destination .\updater\updater\boiii\ -Force
+          Copy-Item -Path .\ext.dll -Destination .\updater\updater\boiii\ -Force
+          Copy-Item -Path .\data\* -Destination .\updater\updater\boiii\data\ -Recurse -Force
+
+      - name: Download hashing executable
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/CBServers/updater/releases/download/v1.0.0/update-hasher.exe" -OutFile "update-hasher.exe"
+
+      - name: Generate hashed.json
+        run: |
+          Copy-Item -Path .\update-hasher.exe -Destination .\updater\updater\boiii\
+          cd updater/updater/boiii
+          .\update-hasher.exe
+          Move-Item -Path .\hashed.json -Destination ..\boiii.json -Force
           Remove-Item -Path .\update-hasher.exe -Force
+
+      - name: Cleanup
+        run: |
+          Remove-Item -Path .\boiii.exe -Force
+          Remove-Item -Path .\ext.dll -Force
+          Remove-Item -Path .\data -Recurse -Force
+          Remove-Item -Path .\update-hasher.exe -ErrorAction SilentlyContinue
 
       - name: Push changes to updater
         run: |
