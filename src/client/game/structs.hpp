@@ -1,6 +1,6 @@
 #pragma once
 
-#define PROTOCOL 7
+#define PROTOCOL 8
 #define SUB_PROTOCOL 1
 
 #ifdef __cplusplus
