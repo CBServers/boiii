@@ -1,5 +1,6 @@
 DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOptions", function (controller)
 	local options = {}
+	local isLobbyHost = Dvar.cl_isLobbyHost:get()
 	if Engine.IsDemoPlaying() then
 		if not IsDemoRestrictedBasicMode() then
 			table.insert(options, {models = {displayText = Engine.ToUpper(Engine.Localize("MENU_UPLOAD_CLIP", Engine.GetDemoSegmentCount())), action = StartMenuUploadClip, disabledFunction = IsUploadClipButtonDisabled}, properties = {hideHelpItemLabel = true}})
@@ -21,7 +22,7 @@ DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOpti
 		if not inTrainingSim then
 			inTrainingSim = 0
 		end
-		if Engine.IsLobbyHost(Enum.LobbyType.LOBBY_TYPE_GAME) then
+		if isLobbyHost then
 			if not CoD.isSafehouse and controller == Engine.GetPrimaryController() then
 				table.insert(options, {models = {displayText = "MENU_RESTART_MISSION_CAPS", action = RestartMission}})
 				if LUI.DEV ~= nil then
@@ -54,17 +55,17 @@ DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOpti
 		end
 		if controller == 0 then
 			local endGameText = "MENU_QUIT_GAME_CAPS"
-			if Engine.IsLobbyHost(Enum.LobbyType.LOBBY_TYPE_GAME) and not CoD.isOnlineGame() then
+			if isLobbyHost then
 				endGameText = "MENU_END_GAME_CAPS"
 			end
 			table.insert(options, {models = {displayText = endGameText, action = QuitGame_MP}})
 		end
 	elseif CoD.isZombie then
 		table.insert(options, {models = {displayText = "MENU_RESUMEGAME_CAPS", action = StartMenuGoBack_ListElement}})
-		if Engine.IsLobbyHost(Enum.LobbyType.LOBBY_TYPE_GAME) and (not Engine.SessionModeIsMode(CoD.SESSIONMODE_SYSTEMLINK) or Engine.SessionModeIsMode(CoD.SESSIONMODE_OFFLINE)) then
+		if isLobbyHost and (not Engine.SessionModeIsMode(CoD.SESSIONMODE_SYSTEMLINK) or Engine.SessionModeIsMode(CoD.SESSIONMODE_OFFLINE)) then
 			table.insert(options, {models = {displayText = "MENU_RESTART_LEVEL_CAPS", action = RestartGame}})
 		end
-		if Engine.IsLobbyHost(Enum.LobbyType.LOBBY_TYPE_GAME) == true then
+		if isLobbyHost then
 			table.insert(options, {models = {displayText = "MENU_END_GAME_CAPS", action = QuitGame_MP}})
 		else
 			table.insert(options, {models = {displayText = "MENU_QUIT_GAME_CAPS", action = QuitGame_MP}})

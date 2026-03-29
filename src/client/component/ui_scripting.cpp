@@ -13,6 +13,7 @@
 #include <utils/hook.hpp>
 #include <utils/flags.hpp>
 #include <utils/finally.hpp>
+#include <game/utils.hpp>
 
 namespace ui_scripting
 {
@@ -268,10 +269,14 @@ namespace ui_scripting
 		{
 			cl_first_snapshot_hook.invoke(a1);
 
-			if (game::Com_IsRunningUILevel() || (doneFirstSnapshot && getinfo::is_host()))
+			const bool is_host = getinfo::is_host();
+			game::Dvar_SetFromStringByName("cl_isLobbyHost", is_host ? "1" : "0", true);
+
+			if (game::Com_IsRunningUILevel() || (doneFirstSnapshot && is_host))
 			{
 				return;
 			}
+
 			doneFirstSnapshot = true;
 			try_start();
 		}
@@ -484,6 +489,8 @@ namespace ui_scripting
 			ui_cod_lobbyui_init_hook.create(game::UI_CoD_LobbyUI_Init, ui_cod_lobbyui_init_stub);
 			ui_shutdown_hook.create(game::select(0x14270DE00, 0x1404A1280), ui_shutdown_stub);
 			lua_cod_getrawfile_hook.create(game::select(0x141F0EFE0, 0x1404BCB70), lua_cod_getrawfile_stub);
+
+			(void)game::register_dvar_bool("cl_isLobbyHost", false, game::DVAR_CHEAT, "");
 
 			if (game::is_server())
 			{
