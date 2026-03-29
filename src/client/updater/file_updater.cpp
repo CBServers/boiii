@@ -17,17 +17,10 @@
 #define UPDATE_HOST_BINARY "boiii.exe"
 #define UPDATE_GAME_BINARY "BlackOps3.exe"
 
-#define CACHE_FOLDER game::get_appdata_cache_path()
-
 namespace updater
 {
 	namespace
 	{
-		std::filesystem::path get_cache_folder()
-		{
-			return CACHE_FOLDER;
-		}
-
 		std::string get_update_file()
 		{
 			return UPDATE_FILE_MAIN;
@@ -88,57 +81,6 @@ namespace updater
 			return parse_file_infos(*json);
 		}
 
-		std::vector<std::string> get_cache_files()
-		{
-			std::vector<std::string> cache_files =
-			{
-				{"cache.bin"},
-				{"data.bin"},
-			};
-
-			return cache_files;
-		}
-
-		bool has_cache_file(const std::string& file)
-		{
-			const auto path = get_cache_folder() / file;
-			return utils::io::file_exists(path);
-		}
-
-		std::vector<std::string> check_cache_files()
-		{
-			const auto files = get_cache_files();
-			std::vector<std::string> cache_files{};
-			
-			for (const auto& file : files)
-			{
-				if (!has_cache_file(file))
-				{
-					cache_files.emplace_back(file);
-				}
-			}
-
-			return cache_files;
-		}
-
-		void create_cache_files(const std::vector<std::string>& files)
-		{
-			const auto cache_folder = get_cache_folder();
-			if (!utils::io::directory_exists(cache_folder))
-			{
-				utils::io::create_directory(cache_folder);
-			}
-
-			std::string data;
-			for (const auto& file : files)
-			{
-				if (!utils::io::write_file(cache_folder / file, data))
-				{
-					throw std::runtime_error("Failed to write: " + file);
-				}
-			}
-		}
-
 		std::string get_hash(const std::string& data)
 		{
 			return utils::cryptography::sha1::compute(data, true);
@@ -185,12 +127,6 @@ namespace updater
 
 	void file_updater::run() const
 	{
-		const auto missing_cache_files = check_cache_files();
-		if (!missing_cache_files.empty())
-		{
-			create_cache_files(missing_cache_files);
-		}
-
 		const auto files = get_file_infos();
 		if (!files.empty())
 		{

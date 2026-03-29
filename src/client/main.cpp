@@ -238,6 +238,24 @@ namespace
 		               static_cast<DWORD>((data.size() + 1u) * 2));
 	}
 
+	void create_cache_files()
+	{
+		const auto cache_folder = game::get_appdata_cache_path();
+		if (!utils::io::directory_exists(cache_folder))
+		{
+			utils::io::create_directory(cache_folder);
+		}
+
+		for (const auto& file : {"cache.bin", "data.bin"})
+		{
+			const auto path = cache_folder / file;
+			if (!utils::io::file_exists(path))
+			{
+				utils::io::write_file(path, {});
+			}
+		}
+	}
+
 	void validate_non_network_share()
 	{
 		const auto self = utils::nt::library::get_by_address(&validate_non_network_share);
@@ -277,6 +295,7 @@ int main()
 		{
 			validate_non_network_share();
 			remove_crash_file();
+			create_cache_files();
 			updater::update();
 
 			if (!utils::io::file_exists(launcher::get_launcher_ui_file().generic_wstring()))
