@@ -8,6 +8,7 @@
 #include "game/ui_scripting/execution.hpp"
 #include "ui_scripting.hpp"
 
+#include <utils/flags.hpp>
 #include <utils/nt.hpp>
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
@@ -57,6 +58,14 @@ namespace name
 
 		void load_player_name()
 		{
+			const auto cli_name = utils::flags::get_flag_value("name");
+
+			if (cli_name && !cli_name->empty())
+			{
+				update_player_name(*cli_name);
+				return;
+			}
+
 			const auto stored_name = utils::properties::load("playerName");
 
 			if (stored_name)
