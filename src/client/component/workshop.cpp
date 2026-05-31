@@ -15,8 +15,6 @@
 
 namespace workshop
 {
-	std::vector<game::workshop_data> custom_workshop_pool;
-
 	namespace
 	{
 		utils::hook::detour setup_server_map_hook;
@@ -117,21 +115,6 @@ namespace workshop
 			utils::string::copy(item.folderName, doc["FolderName"].GetString());
 			utils::string::copy(item.publisherId, doc["PublisherID"].GetString());
 			item.publisherIdInteger = std::strtoul(item.publisherId, nullptr, 10);
-
-			// Store in our custom pool (fix for being overwritten on dedi)
-			game::workshop_data custom_data = item;
-
-			auto it = std::find_if(custom_workshop_pool.begin(), custom_workshop_pool.end(),
-				[&](const game::workshop_data& data) { return std::strcmp(data.folderName, custom_data.folderName) == 0; });
-
-			if (it != custom_workshop_pool.end())
-			{
-				*it = custom_data; // Update existing
-			}
-			else
-			{
-				custom_workshop_pool.push_back(custom_data); // Add new
-			}
 		}
 
 		void load_usermap_content_stub(void* usermaps_count, int type)
@@ -232,39 +215,43 @@ namespace workshop
 		return mod_name;
 	}
 
-	std::string get_usermap_publisher_id(const std::string& zone_name, const bool& get_info)
+	std::string get_usermap_publisher_id(const std::string& zone_name)
 	{
-		if (game::is_server() && get_info)
+		for (unsigned int i = 0; i < *game::usermapsCount; ++i)
 		{
-			for (const auto& workshop_data : custom_workshop_pool)
+			const auto& usermap_data = game::usermapsPool[i];
+			if (usermap_data.folderName == zone_name)
 			{
-				if (workshop_data.type == game::workshop_type::WORKSHOP_USERMAP
-					&& workshop_data.folderName == zone_name)
+				if (!utils::string::is_numeric(usermap_data.publisherId))
 				{
-					return workshop_data.publisherId;
+					printf("[ Workshop ] WARNING: The publisherId is not numerical you might have set your usermap folder incorrectly!\n%s\n",
+						usermap_data.absolutePathZoneFiles);
 				}
-			}
-		}
-		else
-		{
-			for (unsigned int i = 0; i < *game::usermapsCount; ++i)
-			{
-				const auto& usermap_data = game::usermapsPool[i];
-				if (usermap_data.folderName == zone_name)
-				{
-					if (!utils::string::is_numeric(usermap_data.publisherId))
-					{
-						printf("[ Workshop ] WARNING: The publisherId is not numerical you might have set your usermap folder incorrectly!\n%s\n",
-							usermap_data.absolutePathZoneFiles);
-					}
 
-					return usermap_data.publisherId;
-				}
+				return usermap_data.publisherId;
 			}
 		}
-		
+	
 		return {};
-	} 
+	}
+
+	std::string get_usermap_publisher_id()
+	{
+		const std::string loaded_usermap_id = game::getPublisherIdFromLoadedUsermap();
+
+		if (loaded_usermap_id.empty())
+		{
+			return {};
+		}
+
+		if (!utils::string::is_numeric(loaded_usermap_id))
+		{
+			printf("[ Workshop ] WARNING: The publisherId: %s, is not numerical you might have set your usermap folder incorrectly!\n",
+				loaded_usermap_id.data());
+		}
+
+		return loaded_usermap_id;
+	}
 
 	std::string get_usermap_path(const std::string& mapname, const std::string& pub_id)
 	{
@@ -303,7 +290,7 @@ namespace workshop
 	{
 		if (mapname == "core_frontend")
 		{
-			game::UI_OpenErrorPopupWithMessage(0, 0x100, "Invalid map! Make sure the host as already started the match!");
+			game::UI_OpenErrorPopupWithMessage(0, 0x100, "Invalid map! Make sure the host has already started the match!");
 			return false;
 		}
 

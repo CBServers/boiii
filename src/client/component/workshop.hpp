@@ -7,9 +7,8 @@
 
 namespace workshop
 {
-	extern std::vector<game::workshop_data> custom_workshop_pool;
-
-	std::string get_usermap_publisher_id(const std::string& folder_name, const bool& get_info = false);
+	std::string get_usermap_publisher_id(const std::string& folder_name);
+	std::string get_usermap_publisher_id();
 	std::string get_usermap_path(const std::string& mapname, const std::string& pub_id);
 	std::string get_mod_publisher_id();
 	std::string get_mod_resized_name();

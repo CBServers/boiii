@@ -127,8 +127,10 @@ namespace game
 	// Unnamed
 	WEAK symbol<const char*(const char* name)> CopyString{0x1422AC220, 0x14056BD70};
 
-	WEAK symbol<bool()> isModLoaded{0x1420D5020};
+	WEAK symbol<bool()> isModLoaded{0x1420D5020, 0x1404E1200};
+	WEAK symbol<bool()> isUsermapLoaded{0x1420D5040, 0x1404E1220};
 	WEAK symbol<const char*()> getPublisherIdFromLoadedMod{0x1420D7680, 0x1404E3230};
+	WEAK symbol<const char* ()> getPublisherIdFromLoadedUsermap{0x1420D76D0, 0x1404E3280};
 	WEAK symbol<void(int localClientNum, const char* mod, bool)> loadMod{0x1420D6930};
 	WEAK symbol<void()> reloadUserContent{0x1420D66C0, 0x1404E25C0};
 
