@@ -3,21 +3,13 @@
 #include <string>
 #include <vector>
 
+#include <game/game.hpp>
+
 namespace workshop
 {
-	struct custom_usermap_data
-	{
-		std::string folder_name;
-		std::string publisher_id;
-		std::string absolute_path;
-		std::string title;
-		std::string description;
-	};
+	extern std::vector<game::workshop_data> custom_workshop_pool;
 
-	extern std::vector<custom_usermap_data> custom_usermaps_pool;
-
-	std::string get_usermap_publisher_id(const std::string& folder_name);
-	std::string get_usermap_publisher_id_dedi(const std::string& folder_name);
+	std::string get_usermap_publisher_id(const std::string& folder_name, const bool& get_info = false);
 	std::string get_usermap_path(const std::string& mapname, const std::string& pub_id);
 	std::string get_mod_publisher_id();
 	std::string get_mod_resized_name();
