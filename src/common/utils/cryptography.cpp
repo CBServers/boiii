@@ -652,6 +652,23 @@ namespace utils::cryptography
 		return hash;
 	}
 
+	uint32_t fnv1a::compute(const std::string& data)
+	{
+		return compute(data.data(), data.size());
+	}
+
+	uint32_t fnv1a::compute(const void* data, const size_t len)
+	{
+		uint32_t hash = 2166136261u;
+		const auto* bytes = static_cast<const uint8_t*>(data);
+		for (size_t i = 0; i < len; ++i)
+		{
+			hash ^= bytes[i];
+			hash *= 16777619u;
+		}
+		return hash;
+	}
+
 	uint32_t random::get_integer()
 	{
 		uint32_t result;

@@ -112,6 +112,12 @@ namespace utils::cryptography
 		unsigned int compute(const char* key, size_t len);
 	};
 
+	namespace fnv1a
+	{
+		uint32_t compute(const std::string& data);
+		uint32_t compute(const void* data, size_t len);
+	};
+
 	namespace random
 	{
 		uint32_t get_integer();

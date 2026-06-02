@@ -100,6 +100,8 @@ namespace utils::string
 
 	void trim(std::string& str);
 
+	std::string truncate(std::string value, size_t max_length);
+
 	void copy(char* dest, size_t max_size, const char* src);
 
 	template <size_t Size>

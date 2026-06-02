@@ -232,6 +232,24 @@ namespace utils::string
 		ltrim(rtrim(str));
 	}
 
+	std::string truncate(std::string value, const size_t max_length)
+	{
+		if (value.size() <= max_length)
+		{
+			return value;
+		}
+
+		if (max_length <= 3)
+		{
+			value.resize(max_length);
+			return value;
+		}
+
+		value.resize(max_length - 3);
+		value.append("...");
+		return value;
+	}
+
 	void copy(char* dest, const size_t max_size, const char* src)
 	{
 		if (!max_size)

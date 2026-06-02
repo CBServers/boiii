@@ -276,6 +276,12 @@ int main()
 		return 0;
 	}
 
+	const auto self = utils::nt::library::get_by_address(handle_process_runner);
+	if (self.is_valid())
+	{
+		SetCurrentDirectoryW(self.get_path().parent_path().wstring().data());
+	}
+
 	FARPROC entry_point{};
 	srand(uint32_t(time(nullptr)) ^ ~(GetTickCount() * GetCurrentProcessId()));
 

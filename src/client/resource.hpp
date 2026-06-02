@@ -13,3 +13,5 @@
 #define DW_QOSCONFIG          307
 
 #define TLS_DLL               308
+
+#define MAP_MODE_LIST         309

@@ -4,6 +4,12 @@
 
 namespace game
 {
+	void load_display_names();
+	[[nodiscard]] std::string get_map_display_name(const std::string& mapname);
+	[[nodiscard]] std::string get_gametype_display_name(const std::string& gametype);
+	[[nodiscard]] std::string get_mode_display_name(const std::string& mode_key);
+	[[nodiscard]] std::string get_mode_display_name(eModes mode);
+
 	[[nodiscard]] std::string get_dvar_string(const char* dvar_name);
 	[[nodiscard]] int get_dvar_int(const char* dvar_name);
 	[[nodiscard]] bool get_dvar_bool(const char* dvar_name);

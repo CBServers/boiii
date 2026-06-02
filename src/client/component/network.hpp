@@ -14,10 +14,14 @@ namespace network
 	void send_data(const game::netadr_t& address, const void* data, size_t length);
 	void send_data(const game::netadr_t& address, const std::string& data);
 
-	game::netadr_t address_from_string(const std::string& address);
+	game::netadr_t address_from_string(const std::string& address, const bool async_safe = false);
 	game::netadr_t address_from_ip(uint32_t ip, uint16_t port);
+	std::string address_to_string(const game::netadr_t& address);
 
 	bool are_addresses_equal(const game::netadr_t& a, const game::netadr_t& b);
+	bool is_ip_address(const game::netadr_t& address);
+	bool is_private_ip(const game::netadr_t& address);
+	bool is_valid_public_ip(const game::netadr_t& address);
 }
 
 inline bool operator==(const game::netadr_t& a, const game::netadr_t& b)
@@ -50,13 +54,12 @@ namespace std
 		{
 			const auto type_hash = hash<uint32_t>()(x.type);
 
-			if (x.type != game::NA_IP && x.type != game::NA_RAWIP)
+			if (!network::is_ip_address(x))
 			{
 				return type_hash;
 			}
 
-			return type_hash ^ hash<uint32_t>()(x.addr) ^ hash<
-				uint16_t>()(x.port);
+			return type_hash ^ hash<uint32_t>()(x.addr) ^ hash<uint16_t>()(x.port);
 		}
 	};
 }

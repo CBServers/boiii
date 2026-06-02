@@ -225,22 +225,36 @@ namespace network
 		send_data(address, data.data(), data.size());
 	}
 
-	game::netadr_t address_from_string(const std::string& address)
+	game::netadr_t address_from_string(const std::string& address, const bool async_safe)
 	{
 		game::netadr_t addr{};
 		addr.localNetID = game::NS_SERVER;
 
-		if (!game::NET_StringToAdr(address.data(), &addr))
+		if (!async_safe)
+		{
+			if (!game::NET_StringToAdr(address.data(), &addr))
+			{
+				addr.type = game::NA_BAD;
+				return addr;
+			}
+
+			if (addr.type == game::NA_IP)
+			{
+				addr.type = game::NA_RAWIP;
+			}
+
+			return addr;
+		}
+
+		IN_ADDR in_addr{};
+		if (inet_pton(AF_INET, address.data(), &in_addr) != 1)
 		{
 			addr.type = game::NA_BAD;
 			return addr;
 		}
 
-		if (addr.type == game::NA_IP)
-		{
-			addr.type = game::NA_RAWIP;
-		}
-
+		addr.type = game::NA_RAWIP;
+		addr.addr = in_addr.S_un.S_addr;
 		return addr;
 	}
 
@@ -268,6 +282,35 @@ namespace network
 		}
 
 		return a.port == b.port && a.addr == b.addr;
+	}
+
+	bool is_ip_address(const game::netadr_t& address)
+	{
+		return address.type == game::NA_IP || address.type == game::NA_RAWIP;
+	}
+
+	bool is_private_ip(const game::netadr_t& address)
+	{
+		return address.ipv4.a == 10
+			|| (address.ipv4.a == 100 && address.ipv4.b >= 64 && address.ipv4.b <= 127)
+			|| (address.ipv4.a == 172 && address.ipv4.b >= 16 && address.ipv4.b <= 31)
+			|| (address.ipv4.a == 192 && address.ipv4.b == 168)
+			|| (address.ipv4.a == 169 && address.ipv4.b == 254);
+	}
+
+	bool is_valid_public_ip(const game::netadr_t& address)
+	{
+		return is_ip_address(address)
+			&& address.ipv4.a != 0
+			&& address.ipv4.a != 127
+			&& address.ipv4.a < 224
+			&& !is_private_ip(address);
+	}
+
+	std::string address_to_string(const game::netadr_t& address)
+	{
+		return utils::string::va("%u.%u.%u.%u:%hu",
+			address.ipv4.a, address.ipv4.b, address.ipv4.c, address.ipv4.d, address.port);
 	}
 
 	int net_sendpacket_stub(const game::netsrc_t sock, const int length, const char* data, const game::netadr_t* to)

@@ -1,7 +1,11 @@
 #include <std_include.hpp>
 
+#include "resource.hpp"
+
 #include "game.hpp"
 #include "utils.hpp"
+
+#include <utils/nt.hpp>
 
 namespace game
 {
@@ -11,6 +15,104 @@ namespace game
 	static_assert(offsetof(dvar_t, type) == 28);
 	static_assert(offsetof(dvar_t, modified) == 32);
 	static_assert(offsetof(dvar_t, current) == 40);
+
+	namespace
+	{
+		struct DisplayNames
+		{
+			std::unordered_map<std::string, std::string> maps;
+			std::unordered_map<std::string, std::string> gametypes;
+			std::unordered_map<std::string, std::string> modes;
+		};
+
+		DisplayNames g_display_names;
+
+		std::unordered_map<std::string, std::string> parse_string_map(const rapidjson::Value& root, const char* key)
+		{
+			std::unordered_map<std::string, std::string> result;
+
+			const auto member = root.FindMember(key);
+			if (member == root.MemberEnd() || !member->value.IsObject())
+				return result;
+
+			for (auto item = member->value.MemberBegin(); item != member->value.MemberEnd(); ++item)
+			{
+				if (item->name.IsString() && item->value.IsString())
+				{
+					result.emplace(
+						std::string(item->name.GetString(), item->name.GetStringLength()),
+						std::string(item->value.GetString(), item->value.GetStringLength()));
+				}
+			}
+
+			return result;
+		}
+
+		const char* get_mode_key(eModes mode)
+		{
+			switch (mode)
+			{
+			case MODE_MULTIPLAYER:
+				return "mp";
+			case MODE_ZOMBIES:
+				return "zm";
+			case MODE_CAMPAIGN:
+				return "sp";
+			default:
+				return "none";
+			}
+		}
+	}
+
+	void load_display_names()
+	{
+		const auto json = utils::nt::load_resource(MAP_MODE_LIST);
+
+		if (json.empty())
+			return;
+
+		rapidjson::Document doc{};
+		const rapidjson::ParseResult parse_result = doc.Parse(json.data(), json.size());
+
+		if (parse_result.IsError() || !doc.IsObject())
+			return;
+
+		g_display_names.maps = parse_string_map(doc, "maps");
+		g_display_names.gametypes = parse_string_map(doc, "gametypes");
+		g_display_names.modes = parse_string_map(doc, "modes");
+	}
+
+	std::string get_map_display_name(const std::string& mapname)
+	{
+		if (mapname.empty())
+			return {};
+
+		const auto it = g_display_names.maps.find(mapname);
+		return it != g_display_names.maps.end() ? it->second : mapname;
+	}
+
+	std::string get_gametype_display_name(const std::string& gametype)
+	{
+		if (gametype.empty())
+			return {};
+
+		const auto it = g_display_names.gametypes.find(gametype);
+		return it != g_display_names.gametypes.end() ? it->second : gametype;
+	}
+
+	std::string get_mode_display_name(const std::string& mode_key)
+	{
+		if (mode_key.empty())
+			return {};
+
+		const auto it = g_display_names.modes.find(mode_key);
+		return it != g_display_names.modes.end() ? it->second : mode_key;
+	}
+
+	std::string get_mode_display_name(eModes mode)
+	{
+		return get_mode_display_name(get_mode_key(mode));
+	}
 
 	std::string get_dvar_string(const char* dvar_name)
 	{
