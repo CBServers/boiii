@@ -307,6 +307,17 @@ namespace network
 			&& !is_private_ip(address);
 	}
 
+	// Like is_valid_public_ip but allows private/VPN ranges (join targets, candidates).
+	bool is_connectable_address(const game::netadr_t& address)
+	{
+		return is_ip_address(address)
+			&& address.addr != 0
+			&& address.ipv4.a != 0
+			&& address.ipv4.a != 127
+			&& address.ipv4.a < 224
+			&& address.port >= 1024;
+	}
+
 	std::string address_to_string(const game::netadr_t& address)
 	{
 		return utils::string::va("%u.%u.%u.%u:%hu",

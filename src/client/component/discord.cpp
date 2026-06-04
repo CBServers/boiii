@@ -4,6 +4,8 @@
 #include "game/game.hpp"
 #include "game/utils.hpp"
 
+#include "getinfo.hpp"
+#include "nat.hpp"
 #include "network.hpp"
 #include "party.hpp"
 #include "scheduler.hpp"
@@ -12,7 +14,6 @@
 #include <discord_rpc.h>
 
 #include <utils/cryptography.hpp>
-#include <utils/http.hpp>
 #include <utils/nt.hpp>
 #include <utils/string.hpp>
 
@@ -20,7 +21,7 @@ namespace discord
 {
 	namespace
 	{
-		constexpr auto* DISCORD_APP_ID = "1494165323543478392";
+		constexpr auto* DISCORD_APP_ID = "1047539933922988112";
 		constexpr auto* JOIN_SECRET_PREFIX = "boiii:1:";
 		constexpr auto PRESENCE_HEARTBEAT = 60s;
 
@@ -41,10 +42,6 @@ namespace discord
 
 			bool operator==(const presence_snapshot&) const = default;
 		};
-
-		std::mutex public_ip_mutex;
-		std::string cached_public_ip;
-		std::atomic_bool public_ip_fetched{false};
 
 		std::mutex pending_join_mutex;
 		std::string pending_join_secret;
@@ -71,188 +68,6 @@ namespace discord
 			return stripped;
 		}
 
-		bool is_valid_join_address(const game::netadr_t& address)
-		{
-			return network::is_ip_address(address)
-				&& address.addr != 0
-				&& address.ipv4.a != 0
-				&& address.ipv4.a != 127
-				&& address.ipv4.a < 224
-				&& address.port >= 1024;
-		}
-
-		uint16_t get_local_port()
-		{
-			const auto port = game::get_dvar_int("net_port");
-			if (port >= 1024 && port <= 65535)
-			{
-				return static_cast<uint16_t>(port);
-			}
-
-			return 3074;
-		}
-
-		std::string make_address(const std::string& host, const uint16_t port)
-		{
-			if (host.empty() || port < 1024)
-			{
-				return {};
-			}
-
-			const auto candidate = utils::string::va("%s:%hu", host.data(), port);
-			const auto parsed = network::address_from_string(candidate);
-			if (!is_valid_join_address(parsed))
-			{
-				return {};
-			}
-
-			return network::address_to_string(parsed);
-		}
-
-		std::string get_preferred_local_ip()
-		{
-			ULONG length = 15000;
-			std::vector<unsigned char> buffer(length);
-			auto* adapter_info = reinterpret_cast<IP_ADAPTER_INFO*>(buffer.data());
-
-			if (GetAdaptersInfo(adapter_info, &length) == ERROR_BUFFER_OVERFLOW)
-			{
-				buffer.resize(length);
-				adapter_info = reinterpret_cast<IP_ADAPTER_INFO*>(buffer.data());
-			}
-
-			if (GetAdaptersInfo(adapter_info, &length) != NO_ERROR)
-			{
-				return {};
-			}
-
-			std::string radmin_ip;
-			std::string hamachi_ip;
-
-			for (auto* adapter = adapter_info; adapter; adapter = adapter->Next)
-			{
-				const std::string ip = adapter->IpAddressList.IpAddress.String;
-				if (ip == "0.0.0.0" || ip.empty())
-				{
-					continue;
-				}
-
-				if (utils::string::starts_with(ip, "26."))
-				{
-					radmin_ip = ip;
-				}
-				else if (utils::string::starts_with(ip, "25."))
-				{
-					hamachi_ip = ip;
-				}
-			}
-
-			if (!radmin_ip.empty())
-			{
-				return radmin_ip;
-			}
-
-			return hamachi_ip;
-		}
-
-		void fetch_public_ip()
-		{
-			try
-			{
-				auto response = utils::http::get_data("https://api.ipify.org", {}, {}, 1);
-				if (!response || response->empty())
-				{
-					return;
-				}
-
-				utils::string::trim(*response);
-				const auto public_ip = network::address_from_string(*response, true);
-				if (!network::is_valid_public_ip(public_ip))
-				{
-					return;
-				}
-
-				std::lock_guard lock(public_ip_mutex);
-				cached_public_ip = *response;
-				public_ip_fetched = true;
-			}
-			catch (...)
-			{
-			}
-		}
-
-		std::string get_cached_public_ip()
-		{
-			if (!public_ip_fetched)
-			{
-				return {};
-			}
-
-			std::lock_guard lock(public_ip_mutex);
-			return cached_public_ip;
-		}
-
-		std::string get_udp_local_ip()
-		{
-			std::string local_ip;
-			const SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-			if (sock == INVALID_SOCKET)
-			{
-				return {};
-			}
-
-			sockaddr_in target{};
-			target.sin_family = AF_INET;
-			target.sin_port = htons(53);
-			inet_pton(AF_INET, "8.8.8.8", &target.sin_addr);
-
-			if (connect(sock, reinterpret_cast<sockaddr*>(&target), sizeof(target)) == 0)
-			{
-				sockaddr_in local{};
-				int length = sizeof(local);
-				if (getsockname(sock, reinterpret_cast<sockaddr*>(&local), &length) == 0)
-				{
-					char buffer[INET_ADDRSTRLEN]{};
-					inet_ntop(AF_INET, &local.sin_addr, buffer, sizeof(buffer));
-					local_ip = buffer;
-				}
-			}
-
-			closesocket(sock);
-			return local_ip;
-		}
-
-		std::string resolve_private_or_loopback_address(const uint16_t port)
-		{
-			const auto vpn_ip = get_preferred_local_ip();
-			if (!vpn_ip.empty())
-			{
-				const auto address = make_address(vpn_ip, port);
-				if (!address.empty())
-				{
-					return address;
-				}
-			}
-
-			const auto public_ip = get_cached_public_ip();
-			if (!public_ip.empty())
-			{
-				const auto address = make_address(public_ip, port);
-				if (!address.empty())
-				{
-					return address;
-				}
-			}
-
-			const auto local_ip = get_udp_local_ip();
-			if (!local_ip.empty())
-			{
-				return make_address(local_ip, port);
-			}
-
-			return {};
-		}
-
 		std::string get_join_address()
 		{
 			if (!game::Com_IsInGame())
@@ -260,27 +75,20 @@ namespace discord
 				return {};
 			}
 
-			const auto connected = party::get_connected_server();
-
-			if (is_valid_join_address(connected))
+			// Host: our reachable endpoint, paired with a real token to hole-punch.
+			if (auto endpoint = nat::get_host_endpoint(); !endpoint.empty())
 			{
-				if (!network::is_private_ip(connected))
-				{
-					return network::address_to_string(connected);
-				}
+				return endpoint;
+			}
 
-				if (const auto public_ip = get_cached_public_ip(); !public_ip.empty())
-				{
-					if (const auto address = make_address(public_ip, connected.port); !address.empty())
-					{
-						return address;
-					}
-				}
-
+			// Client on a directly-reachable server: advertise it (token will be "-").
+			const auto connected = party::get_connected_server();
+			if (network::is_connectable_address(connected) && !network::is_private_ip(connected))
+			{
 				return network::address_to_string(connected);
 			}
 
-			return resolve_private_or_loopback_address(get_local_port());
+			return {};
 		}
 
 		std::string make_join_secret(const std::string& address)
@@ -290,7 +98,11 @@ namespace discord
 				return {};
 			}
 
-			const auto secret = std::string(JOIN_SECRET_PREFIX) + address;
+			// "boiii:1:<token>:<ip>:<port>"; token "-" means direct-only (no punch).
+			const auto token = nat::current_token();
+			const auto token_field = token.empty() ? std::string("-") : token;
+
+			const auto secret = std::string(JOIN_SECRET_PREFIX) + token_field + ":" + address;
 			if (secret.size() >= 128)
 			{
 				return {};
@@ -299,16 +111,26 @@ namespace discord
 			return secret;
 		}
 
-		bool parse_join_secret(const std::string& secret, std::string* address)
+		bool parse_join_secret(const std::string& secret, std::string* token, std::string* address)
 		{
 			if (!utils::string::starts_with(secret, JOIN_SECRET_PREFIX))
 			{
 				return false;
 			}
 
-			const auto raw_address = secret.substr(strlen(JOIN_SECRET_PREFIX));
+			// "<token>:<ip>:<port>"
+			const auto raw = secret.substr(strlen(JOIN_SECRET_PREFIX));
+			const auto sep = raw.find(':');
+			if (sep == std::string::npos)
+			{
+				return false;
+			}
+
+			*token = raw.substr(0, sep);
+
+			const auto raw_address = raw.substr(sep + 1);
 			const auto parsed = network::address_from_string(raw_address);
-			if (!is_valid_join_address(parsed))
+			if (!network::is_connectable_address(parsed))
 			{
 				return false;
 			}
@@ -337,14 +159,23 @@ namespace discord
 				return;
 			}
 
+			std::string token;
 			std::string address;
-			if (!parse_join_secret(secret, &address))
+			if (!parse_join_secret(secret, &token, &address))
 			{
 				show_join_error();
 				return;
 			}
 
-			game::Cbuf_AddText(0, utils::string::va("connect %s\n", address.data()));
+			// "-" / empty token => friend is on a directly reachable server.
+			if (token.empty() || token == "-")
+			{
+				game::Cbuf_AddText(0, utils::string::va("connect %s\n", address.data()));
+				return;
+			}
+
+			// Hole-punch toward the host; falls back to `address` (port-forward/VPN).
+			nat::begin_join(token, address);
 		}
 
 		std::string get_discord_launch_command()
@@ -357,23 +188,6 @@ namespace discord
 
 			const auto self_path = self.get_path().string();
 			return utils::string::va("\"%s\" -launch \"%%1\"", self_path.data());
-		}
-
-		int get_client_count(const int max_clients)
-		{
-			int count = 0;
-			char name[64]{};
-
-			for (int i = 0; i < max_clients; ++i)
-			{
-				name[0] = '\0';
-				if (game::CL_GetClientName(0, i, name, sizeof(name), false) && name[0] != '\0')
-				{
-					++count;
-				}
-			}
-
-			return count;
 		}
 
 		presence_snapshot build_menu_presence()
@@ -426,10 +240,10 @@ namespace discord
 			snapshot.small_image_key = "logo";
 			snapshot.small_image_text = "BOIII";
 
-			const auto max_clients = game::get_dvar_int("com_maxclients");
+			const auto max_clients = getinfo::get_max_client_count();
 			if (max_clients > 0)
 			{
-				snapshot.party_size = get_client_count(max_clients);
+				snapshot.party_size = static_cast<int>(getinfo::get_client_count());
 				if (snapshot.party_size < 1)
 				{
 					snapshot.party_size = 1;
@@ -546,9 +360,6 @@ namespace discord
 			scheduler::loop(Discord_RunCallbacks, scheduler::pipeline::async, 1s);
 			scheduler::loop(update_discord, scheduler::pipeline::main, 5s);
 			scheduler::loop(process_pending_join, scheduler::pipeline::main, 250ms);
-
-			scheduler::once(fetch_public_ip, scheduler::pipeline::async, 2s);
-			scheduler::loop(fetch_public_ip, scheduler::pipeline::async, 30min);
 		}
 
 		void pre_destroy() override

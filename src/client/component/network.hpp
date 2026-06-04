@@ -22,6 +22,7 @@ namespace network
 	bool is_ip_address(const game::netadr_t& address);
 	bool is_private_ip(const game::netadr_t& address);
 	bool is_valid_public_ip(const game::netadr_t& address);
+	bool is_connectable_address(const game::netadr_t& address);
 }
 
 inline bool operator==(const game::netadr_t& a, const game::netadr_t& b)
