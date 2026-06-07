@@ -23,6 +23,7 @@ namespace nat
 		const game::dvar_t* rendezvous_port{};
 
 		// All state below is touched only on the main thread, so no locking is needed.
+		bool hosting_enabled{}; // host opted in via nat_host; mirrored into the nat_open dvar
 		std::string host_token{}; // non-empty while hosting
 		std::string observed_public_endpoint{}; // our public endpoint, reflected by the rendezvous
 
@@ -292,24 +293,41 @@ namespace nat
 			send_punch_round();
 		}
 
+		void set_hosting_enabled(bool enabled)
+		{
+			hosting_enabled = enabled;
+			game::Dvar_SetFromStringByName("nat_open", enabled ? "1" : "0", true);
+			// Disable pause-freeze while open
+			game::Dvar_SetFromStringByName("com_pauseSupported", enabled ? "0" : "1", true);
+			if (!enabled)
+			{
+				host_token.clear();
+				observed_public_endpoint.clear();
+			}
+		}
+
 		// is_host() excludes the frontend menu, where sv_running is also true.
 		void update_host_session()
 		{
-			if (getinfo::is_host())
+			if (getinfo::is_host() && hosting_enabled)
 			{
 				if (host_token.empty())
 				{
 					host_token = generate_token();
-					printf("[nat] hosting private match, session token=%s\n", host_token.data());
+					printf("[nat] opened private match to friends, token=%s\n", host_token.data());
 				}
 
 				send_to_rendezvous("privRegister", host_token); // register + keepalive
 			}
-			else if (!host_token.empty())
+			else if (hosting_enabled || !host_token.empty())
 			{
-				printf("[nat] match ended, dropping session token=%s\n", host_token.data());
-				host_token.clear();
-				observed_public_endpoint.clear();
+				// Toggled off, match ended, or returned to menu: close + reset the toggle.
+				if (!host_token.empty())
+				{
+					printf("[nat] closing private match, dropping token=%s\n", host_token.data());
+				}
+
+				set_hosting_enabled(false);
 			}
 		}
 	}
@@ -362,10 +380,12 @@ namespace nat
 		{
 			scheduler::once([]
 			{
-				rendezvous_ip = game::register_dvar_string("rendezvousServerIP", "us.cbservers.xyz",
+				rendezvous_ip = game::register_dvar_string("rendezvousServerIP", "master.cbservers.xyz",
 					game::DVAR_NONE, "IP of the private-game rendezvous server");
 				rendezvous_port = game::register_dvar_string("rendezvousServerPort", "20810",
 					game::DVAR_NONE, "Port of the private-game rendezvous server");
+				(void)game::register_dvar_bool("nat_open", false, game::DVAR_NONE,
+					"Allow friends to join this private match");
 			}, scheduler::pipeline::main);
 
 			network::on("privRegisterAck", [](const game::netadr_t&, const network::data_view& data)
@@ -462,7 +482,20 @@ namespace nat
 			// Host session register/keepalive/teardown, driven purely by game state.
 			scheduler::loop(update_host_session, scheduler::pipeline::main, 5s);
 
-			// Manual join for debugging (hosting is automatic now).
+			// Toggle whether the current private match is open to friends.
+			command::add("nat_host", [](const command::params&)
+			{
+				if (!getinfo::is_host())
+				{
+					printf("[nat] not hosting a match; cannot open to friends\n");
+					return;
+				}
+
+				set_hosting_enabled(!hosting_enabled);
+				printf("[nat] match is now %s to friends\n", hosting_enabled ? "OPEN" : "CLOSED");
+			});
+
+			// Manual join for debugging.
 			command::add("nat_join", [](const command::params& params)
 			{
 				if (params.size() < 2)

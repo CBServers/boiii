@@ -26,6 +26,7 @@ namespace ui_scripting
 		utils::hook::detour ui_cod_init_hook;
 		utils::hook::detour ui_cod_lobbyui_init_hook;
 		utils::hook::detour cl_first_snapshot_hook;
+		utils::hook::detour sv_spawn_server_hook;
 		utils::hook::detour ui_shutdown_hook;
 		utils::hook::detour hks_package_require_hook;
 		utils::hook::detour lua_cod_getrawfile_hook;
@@ -281,6 +282,14 @@ namespace ui_scripting
 			try_start();
 		}
 
+		void sv_spawn_server_stub(int controllerIndex, const char* server, game::MapPreload preload, bool savegame)
+		{
+			// New map / full restart tears down UI scripts without passing through the lobby,
+			// so re-arm the first-snapshot reload (the lobby path can't be relied on here).
+			doneFirstSnapshot = false;
+			sv_spawn_server_hook.invoke(controllerIndex, server, preload, savegame);
+		}
+
 		void ui_shutdown_stub()
 		{
 			converted_functions.clear();
@@ -499,6 +508,7 @@ namespace ui_scripting
 
 			ui_init_hook.create(0x142704FF0_g, ui_init_stub);
 			cl_first_snapshot_hook.create(0x141320E60_g, cl_first_snapshot_stub);
+			sv_spawn_server_hook.create(game::SV_SpawnServer, sv_spawn_server_stub);
 
 			scheduler::once([]()
 			{

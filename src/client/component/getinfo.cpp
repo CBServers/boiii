@@ -107,6 +107,7 @@ namespace getinfo
 				info.set("gamemode", std::to_string(game::Com_SessionMode_GetGameMode()));
 				info.set("sv_running", std::to_string(game::is_server_running()));
 				info.set("dedicated", game::is_server() ? "1" : "0");
+				info.set("joinable", (game::is_server() || game::get_dvar_bool("nat_open")) ? "1" : "0");
 				info.set("hc", std::to_string(game::Com_GametypeSettings_GetUInt("hardcoremode", false)));
 				info.set("modName", workshop::get_mod_resized_name());
 				info.set("modId", workshop::get_mod_publisher_id());

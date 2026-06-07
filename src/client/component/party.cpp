@@ -142,6 +142,15 @@ namespace party
 			join.isFinalized = true;
 		}
 
+		void show_ingame_error(const std::string& message)
+		{
+			printf("%s\n", message.data());
+			scheduler::once([message]
+			{
+				game::UI_OpenErrorPopupWithMessage(0, game::ERROR_UI, message.data());
+			}, scheduler::main);
+		}
+
 		void handle_connect_query_response(const bool success, const game::netadr_t& target,
 		                                   const utils::info_string& info, uint32_t ping)
 		{
@@ -152,42 +161,44 @@ namespace party
 
 			is_connecting_to_dedi = info.get("dedicated") == "1";
 
+			// Only block when explicitly closed ("0"); a missing field (other forks) stays joinable.
+			if (!is_connecting_to_dedi && info.get("joinable") == "0")
+			{
+				show_ingame_error("This game is not open to joining. Ask the host to open it from the pause menu.");
+				return;
+			}
+
 			if (atoi(info.get("protocol").data()) != PROTOCOL)
 			{
-				const auto str = "Invalid protocol.";
-				printf("%s\n", str);
+				show_ingame_error("Invalid protocol.");
 				return;
 			}
 
 			const auto sub_protocol = atoi(info.get("sub_protocol").data());
 			if (sub_protocol != SUB_PROTOCOL && sub_protocol != (SUB_PROTOCOL - 1))
 			{
-				const auto str = "Invalid sub-protocol.";
-				printf("%s\n", str);
+				show_ingame_error("Invalid sub-protocol.");
 				return;
 			}
 
 			const auto gamename = info.get("gamename");
 			if (gamename != "T7"s)
 			{
-				const auto str = "Invalid gamename.";
-				printf("%s\n", str);
+				show_ingame_error("Invalid gamename.");
 				return;
 			}
 
 			const auto mapname = info.get("mapname");
 			if (mapname.empty())
 			{
-				const auto str = "Invalid map.";
-				printf("%s\n", str);
+				show_ingame_error("Invalid map.");
 				return;
 			}
 
 			const auto gametype = info.get("gametype");
 			if (gametype.empty())
 			{
-				const auto str = "Invalid gametype.";
-				printf("%s\n", str);
+				show_ingame_error("Invalid gametype.");
 				return;
 			}
 

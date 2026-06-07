@@ -1,3 +1,19 @@
+local function insertFriendsToggle(options)
+	local isOpen = Dvar.nat_open:get()
+	table.insert(options, {models = {
+		displayText = isOpen and "CLOSE TO FRIENDS" or "OPEN TO FRIENDS",
+		action = function(...)
+			Engine.Exec(nil, "nat_host")
+			CoD.OverlayUtility.ShowToast("Invite",
+				isOpen and "CLOSED TO FRIENDS" or "OPEN TO FRIENDS",
+				isOpen and "Friends can no longer join this match."
+					or "Friends can now join this match from Discord.",
+				isOpen and "uie_t7_icon_menu_invite_fail" or "uie_t7_icon_menu_invite_sent")
+			StartMenuGoBack_ListElement(...) -- close the pause menu so the label refreshes on reopen
+		end
+	}})
+end
+
 DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOptions", function (controller)
 	local options = {}
 	local isLobbyHost = Dvar.cl_isLobbyHost:get()
@@ -54,6 +70,9 @@ DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOpti
 			table.insert(options, {models = {displayText = "MPUI_CHANGE_TEAM_BUTTON_CAPS", action = ChooseTeam}})
 		end
 		if controller == 0 then
+			if isLobbyHost then
+				insertFriendsToggle(options)
+			end
 			local endGameText = "MENU_QUIT_GAME_CAPS"
 			if isLobbyHost then
 				endGameText = "MENU_END_GAME_CAPS"
@@ -66,6 +85,7 @@ DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOpti
 			table.insert(options, {models = {displayText = "MENU_RESTART_LEVEL_CAPS", action = RestartGame}})
 		end
 		if isLobbyHost then
+			insertFriendsToggle(options)
 			table.insert(options, {models = {displayText = "MENU_END_GAME_CAPS", action = QuitGame_MP}})
 		else
 			table.insert(options, {models = {displayText = "MENU_QUIT_GAME_CAPS", action = QuitGame_MP}})
