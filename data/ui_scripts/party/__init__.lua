@@ -28,3 +28,4 @@ end
 Engine.SetDvar("com_maxclients", maxClients)
 
 require("datasources_start_menu_game_options")
+require("zombie_toast")

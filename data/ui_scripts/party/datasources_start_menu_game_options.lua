@@ -48,6 +48,9 @@ DataSources.StartMenuGameOptions = ListHelper_SetupDataSource("StartMenuGameOpti
 			if controller == Engine.GetPrimaryController() then
 				table.insert(options, {models = {displayText = "MENU_CHANGE_DIFFICULTY_CAPS", action = OpenDifficultySelect}})
 			end
+			if controller == Engine.GetPrimaryController() and not (CoD.isSafehouse and inTrainingSim == 1) then
+				insertFriendsToggle(options)
+			end
 			if CoD.isSafehouse and inTrainingSim == 1 then
 				table.insert(options, {models = {displayText = "MENU_END_TRAINING_SIM", action = EndTrainingSim}})
 			elseif controller == Engine.GetPrimaryController() then
