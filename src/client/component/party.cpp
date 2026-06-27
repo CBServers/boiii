@@ -39,6 +39,21 @@ namespace party
 			return server_queries;
 		}
 
+		// Hostname of the server from the last connect-time getInfo, used by IPC presence (Feature 2).
+		struct cached_server_info
+		{
+			game::netadr_t host{};
+			std::string hostname{};
+			bool dedicated{false};
+			bool valid{false};
+		};
+
+		utils::concurrency::container<cached_server_info>& get_cached_server_info()
+		{
+			static utils::concurrency::container<cached_server_info> info;
+			return info;
+		}
+
 		void connect_to_lobby(const game::netadr_t& addr, const std::string& mapname, const std::string& gamemode,
 		                      const std::string& usermap_id, const std::string& mod_id)
 		{
@@ -160,6 +175,14 @@ namespace party
 			}
 
 			is_connecting_to_dedi = info.get("dedicated") == "1";
+
+			get_cached_server_info().access([&](cached_server_info& cached)
+			{
+				cached.host = target;
+				cached.hostname = info.get("hostname");
+				cached.dedicated = is_connecting_to_dedi;
+				cached.valid = true;
+			});
 
 			// Only block when explicitly closed ("0"); a missing field (other forks) stays joinable.
 			if (!is_connecting_to_dedi && info.get("joinable") == "0")
@@ -361,6 +384,24 @@ namespace party
 		constexpr auto local_client_num = 0ull;
 		const auto address = *reinterpret_cast<uint64_t*>(0x1453D8BB8_g) + (0x25780 * local_client_num) + 0x10;
 		return *reinterpret_cast<game::netadr_t*>(address);
+	}
+
+	std::string get_public_server_name()
+	{
+		const auto connected = get_connected_server();
+		if (!network::is_valid_public_ip(connected))
+		{
+			return {};
+		}
+
+		return get_cached_server_info().access<std::string>([&](const cached_server_info& cached) -> std::string
+		{
+			if (cached.valid && cached.dedicated && network::are_addresses_equal(cached.host, connected))
+			{
+				return cached.hostname;
+			}
+			return {};
+		});
 	}
 
 	bool is_host(const game::netadr_t& addr)

@@ -15,5 +15,8 @@ namespace party
 
 	game::netadr_t get_connected_server();
 
+	// Connected server's hostname, only for a public dedicated server (else empty). Cached from connect getInfo.
+	std::string get_public_server_name();
+
 	bool is_host(const game::netadr_t& addr);
 }
