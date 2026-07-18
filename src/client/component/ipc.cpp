@@ -190,8 +190,20 @@ namespace ipc
 				discord::queue_join(token, address);
 			}
 
-			enqueue(std::string(R"({"type":"connect-ack","id":")") + id + R"(","accepted":)"
-				+ (accepted ? "true" : "false") + "}\n");
+			// Through rapidjson so a hostile/odd id can't splice or break the line protocol.
+			rapidjson::Document ack;
+			ack.SetObject();
+			auto& allocator = ack.GetAllocator();
+			ack.AddMember(rapidjson::StringRef("type"), rapidjson::StringRef("connect-ack"), allocator);
+			rapidjson::Value id_value;
+			id_value.SetString(id.data(), static_cast<rapidjson::SizeType>(id.size()), allocator);
+			ack.AddMember(rapidjson::StringRef("id"), id_value, allocator);
+			ack.AddMember(rapidjson::StringRef("accepted"), accepted, allocator);
+
+			rapidjson::StringBuffer buffer;
+			rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+			ack.Accept(writer);
+			enqueue(std::string(buffer.GetString(), buffer.GetSize()) + "\n");
 		}
 
 		// Launcher->client messages: hello-ack and presence-owner carry the ownership signal; connect joins.
@@ -339,7 +351,7 @@ namespace ipc
 		{
 			stop_io = false;
 			io_thread = utils::thread::create_named_thread("IPC", io_loop);
-			scheduler::loop(send_presence, scheduler::main, 5s);
+			scheduler::loop(send_presence, scheduler::main, 2s);
 		}
 
 		void pre_destroy() override
@@ -347,6 +359,11 @@ namespace ipc
 			stop_io = true;
 			if (io_thread.joinable())
 			{
+				// Nudge any WriteFile/ReadFile blocked on a wedged launcher until the thread observes stop_io.
+				while (WaitForSingleObject(io_thread.native_handle(), 100) == WAIT_TIMEOUT)
+				{
+					CancelSynchronousIo(io_thread.native_handle());
+				}
 				io_thread.join();
 			}
 		}
