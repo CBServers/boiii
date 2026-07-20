@@ -184,8 +184,8 @@ namespace party
 				cached.valid = true;
 			});
 
-			// Only block when explicitly closed ("0"); a missing field (other forks) stays joinable.
-			if (!is_connecting_to_dedi && info.get("joinable") == "0")
+			// Block only when explicitly closed ("0") and internet-reachable; LAN/loopback stay joinable.
+			if (!is_connecting_to_dedi && info.get("joinable") == "0" && network::is_valid_public_ip(target))
 			{
 				show_ingame_error("This game is not open to joining. Ask the host to open it from the pause menu.");
 				return;
@@ -256,25 +256,17 @@ namespace party
 
 		void connect_stub(const char* address)
 		{
-			if (fastdl::is_downloading())
-			{
-				game::UI_OpenErrorPopupWithMessage(0, 0x100, "A map download is currently in progress. Please wait...");
-				return;
-			}
-
+			auto target = connect_host;
 			if (address)
 			{
-				const auto target = network::address_from_string(address);
+				target = network::address_from_string(address);
 				if (target.type == game::NA_BAD)
 				{
 					return;
 				}
-
-				connect_host = target;
 			}
 
-			profile_infos::clear_profile_infos();
-			query_server(connect_host, handle_connect_query_response);
+			connect(target);
 		}
 
 		void send_server_query(server_query& query)
@@ -315,6 +307,19 @@ namespace party
 				query.callback(true, query.host, info, static_cast<uint32_t>(ping_ms));
 			}
 		}
+	}
+
+	void connect(const game::netadr_t& target)
+	{
+		if (fastdl::is_downloading())
+		{
+			game::UI_OpenErrorPopupWithMessage(0, 0x100, "A map download is currently in progress. Please wait...");
+			return;
+		}
+
+		connect_host = target;
+		profile_infos::clear_profile_infos();
+		query_server(connect_host, handle_connect_query_response);
 	}
 
 	void cleanup_queried_servers()

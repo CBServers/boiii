@@ -38,9 +38,6 @@ namespace discord
 	// The current joinable transport, or empty when not joinable (menu / private / unreachable).
 	std::optional<join_transport> get_join_transport();
 
-	// Route a structured join (token "-"/empty => direct connect, else NAT punch). Must run on the main pipeline.
-	void route_join(const std::string& token, const std::string& address);
-
 	// Queue a structured join to run once the game is ready (main menu up / in a match). Use this for
 	// invite-driven joins: a cold-launched invite arrives mid-load and would crash if routed immediately.
 	void queue_join(const std::string& token, const std::string& address);
