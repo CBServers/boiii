@@ -12,10 +12,12 @@ namespace discord
 		std::string mapname;     // raw map key, empty in menu
 		std::string map_display; // friendly map name
 		std::string gametype;    // friendly gametype name
+		std::string gametype_raw; // raw gametype key, e.g. "tdm"
 		std::string mode;        // short key: "mp" / "zm" / "sp"
 		std::string server_name; // public dedicated server only, else empty
 		int players{0};
 		int max_players{0};
+		bool openable{false};    // hosting a private match not yet open to friends
 	};
 
 	presence_state get_presence_state();

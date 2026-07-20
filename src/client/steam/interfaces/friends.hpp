@@ -17,6 +17,13 @@ namespace steam
 		virtual const char* GetFriendPersonaName(steam_id steamIDFriend);
 		virtual bool GetFriendGamePlayed(steam_id steamIDFriend, void* pFriendGameInfo);
 		virtual const char* GetFriendPersonaNameHistory(steam_id steamIDFriend, int iPersonaName);
+		virtual int GetFriendSteamLevel(steam_id steamIDFriend);
+		virtual const char* GetPlayerNickname(steam_id steamIDPlayer);
+		virtual int GetFriendsGroupCount();
+		virtual short GetFriendsGroupIDByIndex(int iFG);
+		virtual const char* GetFriendsGroupName(short friendsGroupID);
+		virtual int GetFriendsGroupMembersCount(short friendsGroupID);
+		virtual void GetFriendsGroupMembersList(short friendsGroupID, steam_id* pOutSteamIDMembers, int nMembersCount);
 		virtual bool HasFriend(steam_id steamIDFriend, int eFriendFlags);
 		virtual int GetClanCount();
 		virtual steam_id GetClanByIndex(int iClan);

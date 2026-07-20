@@ -471,6 +471,7 @@ namespace discord
 			                    ? std::string{}
 			                    : utils::string::truncate(strip_colors(game::get_map_display_name(mapname)), 128);
 		state.gametype = utils::string::truncate(strip_colors(game::get_gametype_display_name(gametype)), 128);
+		state.gametype_raw = gametype;
 		state.server_name = utils::string::truncate(strip_colors(party::get_public_server_name()), 128);
 
 		const auto max_clients = getinfo::get_max_client_count();
@@ -484,6 +485,8 @@ namespace discord
 			state.players = players;
 			state.max_players = max_clients;
 		}
+
+		state.openable = nat::can_open_to_friends();
 
 		return state;
 	}

@@ -15,4 +15,10 @@ namespace nat
 
 	// Joiner: punch toward the host; on failure connect fallback_address, else error.
 	void begin_join(const std::string& token, const std::string& fallback_address);
+
+	// True when hosting a private match not yet open to friends (main thread only).
+	bool can_open_to_friends();
+
+	// Open the current private match to friends; false when not hosting (main thread only).
+	bool open_to_friends();
 }

@@ -8,11 +8,15 @@
 #include "ui_scripting.hpp"
 #include "scheduler.hpp"
 #include "getinfo.hpp"
+#include "discord.hpp"
+#include "friends.hpp"
+#include "nat.hpp"
 
 #include <utils/io.hpp>
 #include <utils/hook.hpp>
 #include <utils/flags.hpp>
 #include <utils/finally.hpp>
+#include <utils/string.hpp>
 #include <game/utils.hpp>
 
 namespace ui_scripting
@@ -173,10 +177,183 @@ namespace ui_scripting
 			}
 		}
 
+		// temporary: trace the friend-join LUI wiring, remove with the dummy friends list
+		void friend_join_log(const std::string& line)
+		{
+			static std::mutex mutex;
+			std::lock_guard _(mutex);
+			static std::ofstream file("boiii_friends_debug.log", std::ios::app);
+			file << line << std::endl;
+		}
+
+		game::hks::cclosure* lobbyvm_sink_closure = nullptr;
+
+		// Every native join path (details-popup SocialJoin, friends-list J key, ...) funnels into
+		// Engine.LobbyVM_CallFunc("Join"/"InGameJoin", {xuid=...}). Launcher friends have no real
+		// Demonware session, so intercept that one sink and route them to the launcher instead.
+		// Re-wraps whenever the engine re-registered the native binding over ours (LobbyUI init
+		// does this after the first setup pass), so the check is by closure identity, not a flag.
+		void setup_lobbyvm_join_sink(const table& lua)
+		{
+			const auto engine = lua["Engine"];
+			const auto current = engine["LobbyVM_CallFunc"];
+			if (!current.is<function>())
+			{
+				printf("[friends] Engine.LobbyVM_CallFunc missing; join sink not installed\n");
+				return;
+			}
+
+			if (current.get_raw().v.cClosure == lobbyvm_sink_closure)
+			{
+				return;
+			}
+
+			const auto original = current.as<function>();
+			const auto closure = convert_function(
+				[original](const variadic_args& va) -> arguments
+				{
+					if (va.size() >= 2 && va[0].is<std::string>() && va[1].is<table>())
+					{
+						const auto name = va[0].as<std::string>();
+						if (name == "Join" || name == "InGameJoin")
+						{
+							const auto xuid = va[1].as<table>().get("xuid");
+							const auto& raw = xuid.get_raw();
+
+							unsigned long long bits = 0;
+							if (raw.t == game::hks::TUI64)
+							{
+								// raw 64-bit int, value in the 8-byte payload
+								bits = reinterpret_cast<unsigned long long>(raw.v.ptr);
+							}
+							else if (raw.t == game::hks::TUSERDATA)
+							{
+								// boxed 64-bit (what model values arrive as); unbox with the game's converter
+								const auto hex = get_globals()["Engine"]["UInt64ToString"](xuid);
+								if (!hex.empty() && hex[0].is<std::string>())
+								{
+									try { bits = std::stoull(hex[0].as<std::string>(), nullptr, 16); }
+									catch (...) {}
+								}
+							}
+
+							if (bits && friends::is_joinable(bits))
+							{
+								printf("[friends] LobbyVM %s -> launcher join for %llX\n", name.data(), bits);
+								friends::request_join(bits);
+								return {};
+							}
+							// temporary: diagnose why a join fell through to the native path
+							printf("[friends] LobbyVM %s fall-through (xuid type=%d bits=%llX joinable=%d)\n",
+							       name.data(), raw.t, bits, bits ? friends::is_joinable(bits) : 0);
+						}
+					}
+					return original.call(va);
+				});
+
+			lobbyvm_sink_closure = closure;
+			engine["LobbyVM_CallFunc"] = function(closure, game::hks::TCFUNCTION);
+			printf("[friends] LobbyVM join sink installed\n");
+		}
+
+		game::hks::cclosure* can_invite_gate_closure = nullptr;
+
+		// CoD.canInviteToGame gates every invite button (details-popup INVITE GAME / INVITE TO
+		// PARTY, CoD.invitePlayer, ...). Launcher invites only deliver while our presence is
+		// joinable (join transport published), and party lobbies don't exist on this client, so
+		// force the gate false unless we're in a joinable match. The gate also passes while
+		// hosting a closed private match, since sending an invite auto-opens it to friends.
+		void setup_can_invite_gate(const table& lua)
+		{
+			const auto cod = lua["CoD"];
+			if (!cod.is<table>())
+			{
+				return;
+			}
+
+			const auto current = cod["canInviteToGame"];
+			if (!current.is<function>())
+			{
+				return;
+			}
+
+			if (current.get_raw().v.cClosure == can_invite_gate_closure)
+			{
+				return;
+			}
+
+			const auto original = current.as<function>();
+			const auto closure = convert_function(
+				[original](const variadic_args& va) -> arguments
+				{
+					if (!discord::get_join_transport() && !nat::can_open_to_friends())
+					{
+						return {script_value(false)};
+					}
+					return original.call(va);
+				});
+
+			can_invite_gate_closure = closure;
+			cod["canInviteToGame"] = function(closure, game::hks::TCFUNCTION);
+			printf("[friends] canInviteToGame gate installed\n");
+		}
+
 		void setup_functions()
 		{
 			const auto lua = get_globals();
 			lua["game"] = table();
+
+			// temporary: lets the friend_join LUI script trace itself into boiii_friends_debug.log
+			lua["game"]["friendJoinLog"] = function(convert_function([](const std::string& msg)
+			{
+				friend_join_log("[friend_join] " + msg);
+			}), game::hks::TCFUNCTION);
+
+			// snapshot change counter, polled by the friend_join script to live-refresh Social
+			lua["game"]["friendsSnapshotVersion"] = function(convert_function([]() -> int
+			{
+				return friends::snapshot_version();
+			}), game::hks::TCFUNCTION);
+
+			// gate the native Social JOIN reroute to friends the launcher marks joinable
+			lua["game"]["isFriendJoinable"] = function(convert_function([](const std::string& xuid_hex) -> bool
+			{
+				unsigned long long bits = 0;
+				try { bits = std::stoull(xuid_hex, nullptr, 16); }
+				catch (...) { return false; }
+				return friends::is_joinable(bits);
+			}), game::hks::TCFUNCTION);
+
+			// native Social JOIN target (SocialJoin reroute). Asks the launcher to resolve the
+			// friend's join secret; the connect comes back over IPC as a "connect" message.
+			// xuid arrives as a hex string from Lua (Engine.UInt64ToString).
+			lua["game"]["connectToFriend"] = function(convert_function([](const std::string& xuid_hex) -> bool
+			{
+				unsigned long long bits = 0;
+				try { bits = std::stoull(xuid_hex, nullptr, 16); }
+				catch (...) { return false; }
+				printf("[friends] game.connectToFriend(hex=%s bits=%llu) invoked from LUI\n", xuid_hex.data(), bits);
+				return friends::request_join(bits);
+			}), game::hks::TCFUNCTION);
+
+			// raw-name -> native id registration, called by the friend_join LUI script at UI load
+			// (values arrive as strings; the game's struct tables are only reachable from Lua)
+			lua["game"]["registerFriendMap"] = function(convert_function(
+				[](const std::string& name, const std::string& unique_id)
+				{
+					try { friends::register_map_id(name, std::stoi(unique_id)); }
+					catch (...) {}
+				}), game::hks::TCFUNCTION);
+
+			lua["game"]["registerFriendGametype"] = function(convert_function(
+				[](const std::string& name, const std::string& id)
+				{
+					try { friends::register_gametype_id(name, std::stoi(id)); }
+					catch (...) {}
+				}), game::hks::TCFUNCTION);
+
+			setup_lobbyvm_join_sink(lua);
+			setup_can_invite_gate(lua);
 		}
 
 		void enable_globals()
@@ -386,7 +563,11 @@ namespace ui_scripting
 			utils::hook::jump(0x141D300B0_g, lua_unsafe_function_stub); // base_loadfile
 			utils::hook::jump(0x141D31EE0_g, lua_unsafe_function_stub); // base_load
 			utils::hook::jump(0x141D2CF00_g, lua_unsafe_function_stub); // string_dump
-			utils::hook::jump(0x141FD3220_g, lua_unsafe_function_stub); // engine_openurl
+			// NOTE: 0x141FD3220 is NOT engine_openurl on this build — it lands mid-instruction
+			// inside FUN_141fd31c0, a friends-cluster Engine binding, corrupting it. Opening the
+			// Social/friends list (once the list is non-empty) executes that binding and detonates.
+			// Disabled until the correct engine_openurl address is confirmed.
+			// utils::hook::jump(0x141FD3220_g, lua_unsafe_function_stub); // engine_openurl
 
 			utils::hook::jump(0x141D2AFF0_g, lua_unsafe_function_stub); // os_getenv
 			utils::hook::jump(0x141D2B790_g, lua_unsafe_function_stub); // os_exit

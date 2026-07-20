@@ -2,6 +2,9 @@
 #include "loader/component_loader.hpp"
 
 #include "discord.hpp"
+#include "friends.hpp"
+#include "ipc.hpp"
+#include "nat.hpp"
 #include "scheduler.hpp"
 
 #include <utils/concurrency.hpp>
@@ -61,9 +64,11 @@ namespace ipc
 			add("mapDisplay", state.map_display);
 			add("mode", state.mode);
 			add("gametype", state.gametype);
+			add("gametypeRaw", state.gametype_raw);
 			add("serverName", state.server_name);
 			doc.AddMember(rapidjson::StringRef("players"), state.players, allocator);
 			doc.AddMember(rapidjson::StringRef("maxPlayers"), state.max_players, allocator);
+			doc.AddMember(rapidjson::StringRef("openable"), state.openable, allocator);
 
 			// Optional join transport (Feature 3): omitted when not joinable.
 			if (const auto transport = discord::get_join_transport())
@@ -194,6 +199,50 @@ namespace ipc
 				+ (accepted ? "true" : "false") + "}\n");
 		}
 
+		bool jbool(const rapidjson::Value& value, const char* key)
+		{
+			return value.HasMember(key) && value[key].IsBool() && value[key].GetBool();
+		}
+
+		// Full friends snapshot from the launcher; parsed here on the io thread, store swap is thread-safe.
+		void handle_friends(const rapidjson::Value& doc)
+		{
+			if (!doc.HasMember("friends") || !doc["friends"].IsArray())
+			{
+				return;
+			}
+
+			std::vector<friends::snapshot_entry> entries;
+			for (const auto& item : doc["friends"].GetArray())
+			{
+				if (!item.IsObject())
+				{
+					continue;
+				}
+
+				friends::snapshot_entry entry{};
+				entry.discord_id = jstr(item, "id");
+				entry.name = jstr(item, "name");
+				entry.status = jstr(item, "status");
+				entry.in_launcher = jbool(item, "inLauncher");
+
+				if (item.HasMember("game") && item["game"].IsObject())
+				{
+					const auto& g = item["game"];
+					entry.has_game = true;
+					entry.game_id = jstr(g, "id");
+					entry.mode = jstr(g, "mode");
+					entry.map = jstr(g, "map");
+					entry.gametype = jstr(g, "gametype");
+					entry.joinable = jbool(g, "joinable");
+				}
+
+				entries.push_back(std::move(entry));
+			}
+
+			friends::apply_snapshot(entries);
+		}
+
 		// Launcher->client messages: hello-ack and presence-owner carry the ownership signal; connect joins.
 		void handle_incoming_line(const std::string& line)
 		{
@@ -221,6 +270,21 @@ namespace ipc
 			else if (type == "connect")
 			{
 				handle_connect(doc);
+			}
+			else if (type == "friends")
+			{
+				handle_friends(doc);
+			}
+			else if (type == "open-match")
+			{
+				// Launcher-approved knock: open the match, ack, and push the transport immediately.
+				scheduler::once([]
+				{
+					const auto opened = nat::open_to_friends();
+					enqueue(std::string(R"({"type":"open-match-ack","opened":)")
+						+ (opened ? "true" : "false") + "}\n");
+					send_presence();
+				}, scheduler::main);
 			}
 		}
 
@@ -325,11 +389,23 @@ namespace ipc
 				}
 
 				CloseHandle(pipe);
-				// Pipe lost: hand presence back to native RPC (debounced client-side).
+				// Pipe lost: hand presence back to native RPC (debounced client-side) and drop the
+				// launcher-fed friends list (it would show stale online friends forever).
 				discord::set_launcher_presence_owner(false);
+				friends::apply_snapshot({});
 				get_queue().access([](std::deque<std::string>& queue) { queue.clear(); });
 			}
 		}
+	}
+
+	void send_message(std::string line)
+	{
+		enqueue(std::move(line) + "\n");
+	}
+
+	void flush_presence()
+	{
+		scheduler::once(send_presence, scheduler::main);
 	}
 
 	class component final : public client_component
