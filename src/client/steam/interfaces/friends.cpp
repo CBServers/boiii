@@ -2,7 +2,6 @@
 #include "../steam.hpp"
 
 #include <utils/nt.hpp>
-#include <utils/string.hpp>
 
 #include "component/name.hpp"
 #include "component/chat.hpp"
@@ -37,15 +36,6 @@ namespace steam
 		{
 			return ::friends::find_friend(id.bits, out);
 		}
-
-		// temporary crash diagnostics, remove once the launcher feed is verified
-		void debug_log(const std::string& line)
-		{
-			static std::mutex mutex;
-			std::lock_guard _(mutex);
-			static std::ofstream file("boiii_friends_debug.log", std::ios::app);
-			file << line << std::endl;
-		}
 	}
 
 	const char* friends::GetPersonaName()
@@ -65,14 +55,11 @@ namespace steam
 
 	int friends::GetFriendCount(int eFriendFlags)
 	{
-		const auto count = static_cast<int>(::friends::get_friends().size());
-		debug_log(::utils::string::va("GetFriendCount(0x%X) -> %d", eFriendFlags, count));
-		return count;
+		return static_cast<int>(::friends::get_friends().size());
 	}
 
 	steam_id friends::GetFriendByIndex(int iFriend, int iFriendFlags)
 	{
-		debug_log(::utils::string::va("GetFriendByIndex(%d, 0x%X)", iFriend, iFriendFlags));
 		const auto list = ::friends::get_friends();
 		if (iFriend < 0 || iFriend >= static_cast<int>(list.size()))
 		{
@@ -127,7 +114,6 @@ namespace steam
 			info->lobby = make_lobby_id(steamIDFriend.raw.account_id);
 		}
 
-		debug_log(::utils::string::va("GetFriendGamePlayed(%llX) -> true (in game)", steamIDFriend.bits));
 		return true;
 	}
 
@@ -251,25 +237,21 @@ namespace steam
 
 	int friends::GetSmallFriendAvatar(steam_id steamIDFriend)
 	{
-		debug_log(::utils::string::va("GetSmallFriendAvatar(%llX)", steamIDFriend.bits));
 		return 0;
 	}
 
 	int friends::GetMediumFriendAvatar(steam_id steamIDFriend)
 	{
-		debug_log(::utils::string::va("GetMediumFriendAvatar(%llX)", steamIDFriend.bits));
 		return 0;
 	}
 
 	int friends::GetLargeFriendAvatar(steam_id steamIDFriend)
 	{
-		debug_log(::utils::string::va("GetLargeFriendAvatar(%llX)", steamIDFriend.bits));
 		return 0;
 	}
 
 	bool friends::RequestUserInformation(steam_id steamIDUser, bool bRequireNameOnly)
 	{
-		debug_log(::utils::string::va("RequestUserInformation(%llX, %d)", steamIDUser.bits, bRequireNameOnly));
 		return false;
 	}
 
@@ -341,25 +323,20 @@ namespace steam
 
 	int friends::GetFriendRichPresenceKeyCount(steam_id steamIDFriend)
 	{
-		debug_log(::utils::string::va("GetFriendRichPresenceKeyCount(%llX)", steamIDFriend.bits));
 		return 0;
 	}
 
 	const char* friends::GetFriendRichPresenceKeyByIndex(steam_id steamIDFriend, int iKey)
 	{
-		debug_log(::utils::string::va("GetFriendRichPresenceKeyByIndex(%llX, %d)", steamIDFriend.bits, iKey));
 		return "a";
 	}
 
 	void friends::RequestFriendRichPresence(steam_id steamIDFriend)
 	{
-		debug_log(::utils::string::va("RequestFriendRichPresence(%llX)", steamIDFriend.bits));
 	}
 
 	bool friends::InviteUserToGame(steam_id steamIDFriend, const char* pchConnectString)
 	{
-		debug_log(::utils::string::va("*** InviteUserToGame(%llX, %s)", steamIDFriend.bits,
-		                              pchConnectString ? pchConnectString : "null"));
 		return ::friends::request_invite(steamIDFriend.bits);
 	}
 

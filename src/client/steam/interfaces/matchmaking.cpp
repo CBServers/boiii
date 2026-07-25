@@ -1,26 +1,12 @@
 #include <std_include.hpp>
 #include "../steam.hpp"
 
-#include <utils/string.hpp>
-
 #include "component/network.hpp"
 #include "component/server_list.hpp"
 #include "component/friends.hpp"
 
 namespace steam
 {
-	namespace
-	{
-		// temporary: trace friend-join sinks, remove with the dummy friends list
-		void join_log(const std::string& line)
-		{
-			static std::mutex mutex;
-			std::lock_guard _(mutex);
-			static std::ofstream file("boiii_friends_debug.log", std::ios::app);
-			file << line << std::endl;
-		}
-	}
-
 	int matchmaking::GetFavoriteGameCount()
 	{
 		return 0;
@@ -121,7 +107,6 @@ namespace steam
 
 	unsigned long long matchmaking::JoinLobby(steam_id steamIDLobby)
 	{
-		join_log(::utils::string::va("*** JoinLobby(%llX)", steamIDLobby.bits));
 		const auto result = callbacks::register_call();
 		auto* retvals = static_cast<lobby_enter*>(calloc(1, sizeof(lobby_enter)));
 		//::Utils::Memory::AllocateArray<LobbyEnter>();
@@ -141,8 +126,6 @@ namespace steam
 
 	bool matchmaking::InviteUserToLobby(steam_id steamIDLobby, steam_id steamIDInvitee)
 	{
-		join_log(::utils::string::va("*** InviteUserToLobby(lobby=%llX, invitee=%llX)", steamIDLobby.bits,
-		                             steamIDInvitee.bits));
 		return ::friends::request_invite(steamIDInvitee.bits);
 	}
 

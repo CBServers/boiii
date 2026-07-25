@@ -177,15 +177,6 @@ namespace ui_scripting
 			}
 		}
 
-		// temporary: trace the friend-join LUI wiring, remove with the dummy friends list
-		void friend_join_log(const std::string& line)
-		{
-			static std::mutex mutex;
-			std::lock_guard _(mutex);
-			static std::ofstream file("boiii_friends_debug.log", std::ios::app);
-			file << line << std::endl;
-		}
-
 		game::hks::cclosure* lobbyvm_sink_closure = nullptr;
 
 		// Every native join path (details-popup SocialJoin, friends-list J key, ...) funnels into
@@ -243,9 +234,6 @@ namespace ui_scripting
 								friends::request_join(bits);
 								return {};
 							}
-							// temporary: diagnose why a join fell through to the native path
-							printf("[friends] LobbyVM %s fall-through (xuid type=%d bits=%llX joinable=%d)\n",
-							       name.data(), raw.t, bits, bits ? friends::is_joinable(bits) : 0);
 						}
 					}
 					return original.call(va);
@@ -302,12 +290,6 @@ namespace ui_scripting
 		{
 			const auto lua = get_globals();
 			lua["game"] = table();
-
-			// temporary: lets the friend_join LUI script trace itself into boiii_friends_debug.log
-			lua["game"]["friendJoinLog"] = function(convert_function([](const std::string& msg)
-			{
-				friend_join_log("[friend_join] " + msg);
-			}), game::hks::TCFUNCTION);
 
 			// snapshot change counter, polled by the friend_join script to live-refresh Social
 			lua["game"]["friendsSnapshotVersion"] = function(convert_function([]() -> int
