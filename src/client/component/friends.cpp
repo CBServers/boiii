@@ -71,7 +71,9 @@ namespace friends
 				record.name = entry.name.empty() ? entry.discord_id : entry.name;
 				record.persona_state = map_persona_state(entry.status);
 				record.in_game = entry.has_game && entry.game_id == "boiii";
-				record.joinable = record.in_game && entry.joinable;
+				record.same_match = record.in_game && entry.same_match;
+				// Joining someone already in our match would just reconnect us to it.
+				record.joinable = record.in_game && entry.joinable && !record.same_match;
 				record.mode = entry.mode;
 				record.map = entry.map;
 				record.gametype = entry.gametype;

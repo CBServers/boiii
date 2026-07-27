@@ -18,6 +18,7 @@ namespace discord
 		int players{0};
 		int max_players{0};
 		bool openable{false};    // hosting a private match not yet open to friends
+		std::string match_id;    // identity of the current match, identical for host and joiners
 	};
 
 	presence_state get_presence_state();

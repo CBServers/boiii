@@ -31,7 +31,8 @@ end
 if LUI ~= nil and LUI.roots ~= nil then
 	local huds = {}
 	for _, root in pairs(LUI.roots) do
-		if type(root) == "table" and root.getFirstChild ~= nil then
+		-- roots are userdata, not tables: a type check here silently skips every root
+		if root ~= nil and root.getFirstChild ~= nil then
 			local child = root:getFirstChild()
 			while child ~= nil do
 				if child.id == "Menu.HUD" then

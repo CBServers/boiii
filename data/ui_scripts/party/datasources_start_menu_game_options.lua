@@ -7,7 +7,7 @@ local function insertFriendsToggle(options)
 			CoD.OverlayUtility.ShowToast("Invite",
 				isOpen and "CLOSED TO FRIENDS" or "OPEN TO FRIENDS",
 				isOpen and "Friends can no longer join this match."
-					or "Friends can now join this match from Discord.",
+					or "Friends can now join this match.",
 				isOpen and "uie_t7_icon_menu_invite_fail" or "uie_t7_icon_menu_invite_sent")
 			StartMenuGoBack_ListElement(...) -- close the pause menu so the label refreshes on reopen
 		end

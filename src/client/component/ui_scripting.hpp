@@ -46,4 +46,7 @@ namespace ui_scripting
 	game::hks::cclosure* convert_function(F f);
 
 	void show_message_dialog(const std::string& title, const std::string& message);
+
+	// Passive HUD/frontend toast (CoD.OverlayUtility.ShowToast); silently no-ops if the UI isn't up.
+	void show_toast(const std::string& kicker, const std::string& description, const std::string& icon);
 }

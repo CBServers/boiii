@@ -7,6 +7,9 @@
 #include "nat.hpp"
 #include "scheduler.hpp"
 
+#include "game/ui_scripting/execution.hpp"
+#include "ui_scripting.hpp"
+
 #include <utils/concurrency.hpp>
 #include <utils/thread.hpp>
 
@@ -66,6 +69,7 @@ namespace ipc
 			add("gametype", state.gametype);
 			add("gametypeRaw", state.gametype_raw);
 			add("serverName", state.server_name);
+			add("matchId", state.match_id);
 			doc.AddMember(rapidjson::StringRef("players"), state.players, allocator);
 			doc.AddMember(rapidjson::StringRef("maxPlayers"), state.max_players, allocator);
 			doc.AddMember(rapidjson::StringRef("openable"), state.openable, allocator);
@@ -247,12 +251,60 @@ namespace ipc
 					entry.map = jstr(g, "map");
 					entry.gametype = jstr(g, "gametype");
 					entry.joinable = jbool(g, "joinable");
+					entry.same_match = jbool(g, "sameMatch");
 				}
 
 				entries.push_back(std::move(entry));
 			}
 
 			friends::apply_snapshot(entries);
+		}
+
+		// Discord display names are remote input rendered into LUI: keep printable ASCII, bound the length.
+		std::string sanitize_name(const std::string& name)
+		{
+			std::string out;
+			for (const auto c : name)
+			{
+				if (out.size() >= 32)
+				{
+					break;
+				}
+				if (static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7F)
+				{
+					out.push_back(c);
+				}
+			}
+			return out;
+		}
+
+		// Passive in-game toast for an invite the launcher surfaced: its Windows toast can't draw over
+		// an exclusive-fullscreen game. Informational only — accepting still happens in the launcher.
+		void handle_notify(const rapidjson::Value& doc)
+		{
+			if (jstr(doc, "kind") != "invite")
+			{
+				return;
+			}
+
+			const auto from = sanitize_name(jstr(doc, "from"));
+			const auto who = from.empty() ? std::string("A friend") : from;
+
+			static auto last_toast = std::chrono::steady_clock::time_point{};
+			static std::string last_who;
+
+			const auto now = std::chrono::steady_clock::now();
+			if (last_toast.time_since_epoch().count() != 0
+				&& (now - last_toast < 3s || (who == last_who && now - last_toast < 15s)))
+			{
+				return;
+			}
+
+			last_toast = now;
+			last_who = who;
+
+			ui_scripting::show_toast("INVITE", who + " invited you. Accept in CB Launcher.",
+			                         "uie_t7_icon_menu_invite_sent");
 		}
 
 		// Launcher->client messages: hello-ack and presence-owner carry the ownership signal; connect joins.
@@ -286,6 +338,10 @@ namespace ipc
 			else if (type == "friends")
 			{
 				handle_friends(doc);
+			}
+			else if (type == "notify")
+			{
+				handle_notify(doc);
 			}
 			else if (type == "open-match")
 			{

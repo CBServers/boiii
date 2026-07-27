@@ -15,6 +15,7 @@ namespace friends
 		int persona_state{0}; // steam persona: 0 offline, 1 online, 2 busy, 3 away
 		bool in_game{false};  // in a boiii match (launcher saw a party with game id "boiii")
 		bool joinable{false};
+		bool same_match{false}; // in the match we're already in; never joinable
 		std::string mode;     // "mp" / "zm"
 		std::string map;      // raw map name, e.g. "mp_nuketown_x"
 		std::string gametype; // raw gametype name, e.g. "tdm"
@@ -33,6 +34,7 @@ namespace friends
 		std::string map;
 		std::string gametype;
 		bool joinable{false};
+		bool same_match{false};
 	};
 
 	// Called from the IPC io thread; swaps the store atomically.

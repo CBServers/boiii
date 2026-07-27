@@ -314,7 +314,9 @@ namespace steam
 
 		if (key == "version" || key == "state") value_buffer = "1";
 		else if (key == "tActivity") value_buffer = std::to_string(activity);
-		else if (key == "tJoinable") value_buffer = record.joinable ? "1" : "0";
+		// 9 is a spare LobbyJoinable slot (presence.lua maps 0-10); friend_join relabels it
+		// "In your match" so a same-match friend doesn't read as a plain "Not Joinable".
+		else if (key == "tJoinable") value_buffer = record.same_match ? "9" : (record.joinable ? "1" : "0");
 		else if (key == "tMapId" && resolved) value_buffer = std::to_string(map_id);
 		else if (key == "tGametype" && resolved && !zm) value_buffer = std::to_string(gametype_id);
 

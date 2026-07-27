@@ -102,6 +102,38 @@ namespace discord
 			return {};
 		}
 
+		// Identity of the match we're in, derived so the host and every joiner land on the same value.
+		// Public dedis are keyed by the address all clients already agree on; private matches by the
+		// punch token. The dedi check precedes the joined token so a stale token can't shadow it.
+		std::string get_match_id()
+		{
+			if (!game::Com_IsInGame())
+			{
+				return {};
+			}
+
+			std::string key;
+			// Hosted token, not the active one: identity has to survive a close to friends.
+			if (const auto host_token = nat::hosted_session_token(); !host_token.empty())
+			{
+				key = "t:" + host_token;
+			}
+			else if (!party::get_public_server_name().empty())
+			{
+				key = "a:" + network::address_to_string(party::get_connected_server());
+			}
+			else if (const auto token = nat::joined_session_token(); !token.empty())
+			{
+				key = "t:" + token;
+			}
+			else
+			{
+				return {};
+			}
+
+			return utils::string::va("%08X", utils::cryptography::fnv1a::compute(key));
+		}
+
 		std::string make_join_secret(const std::string& address)
 		{
 			if (address.empty())
@@ -478,24 +510,40 @@ namespace discord
 		}
 
 		state.openable = nat::can_open_to_friends();
+		state.match_id = get_match_id();
 
 		return state;
 	}
 
 	std::optional<join_transport> get_join_transport()
 	{
-		const auto address = get_join_address();
-		if (address.empty())
+		// joined_token outlives a load screen by design, so gate on being in a match.
+		if (!game::Com_IsInGame())
 		{
 			return std::nullopt;
 		}
 
-		const auto token = nat::current_token();
-
 		join_transport transport{};
-		if (token.empty())
+
+		// Hosting an open private match: NAT punch with our reachable endpoint as fallback.
+		if (const auto token = nat::current_token(); !token.empty())
 		{
-			// Directly reachable public server: advertise it as a direct connect.
+			const auto address = get_join_address();
+			if (address.empty())
+			{
+				return std::nullopt;
+			}
+
+			transport.is_nat = true;
+			transport.token = token;
+			nat::get_rendezvous(transport.rendezvous_host, transport.rendezvous_port);
+			split_address(address, transport.fallback_ip, transport.fallback_port);
+			return transport;
+		}
+
+		// Directly reachable public server: advertise it as a direct connect.
+		if (const auto address = get_join_address(); !address.empty())
+		{
 			if (!split_address(address, transport.ip, transport.port))
 			{
 				return std::nullopt;
@@ -504,12 +552,22 @@ namespace discord
 			return transport;
 		}
 
-		// Hosting: NAT punch with the reachable endpoint as fallback.
-		transport.is_nat = true;
-		transport.token = token;
-		nat::get_rendezvous(transport.rendezvous_host, transport.rendezvous_port);
-		split_address(address, transport.fallback_ip, transport.fallback_port);
-		return transport;
+		// Non-host in a private match we punched into: re-advertise the host's session so friends can
+		// join us there. The token is match-scoped — their punch reaches the host directly (the
+		// rendezvous only knows the host's candidates), so we're never in the network path. Gated on
+		// the host still accepting joins, so closing the match stops us advertising it too.
+		if (const auto token = nat::joined_session_token(); !token.empty() && nat::joined_session_open())
+		{
+			const auto host_address = network::address_to_string(party::get_connected_server());
+
+			transport.is_nat = true;
+			transport.token = token;
+			nat::get_rendezvous(transport.rendezvous_host, transport.rendezvous_port);
+			split_address(host_address, transport.fallback_ip, transport.fallback_port);
+			return transport;
+		}
+
+		return std::nullopt;
 	}
 
 	void queue_join(const std::string& token, const std::string& address)

@@ -6,6 +6,7 @@
 
 #include "command.hpp"
 #include "getinfo.hpp"
+#include "ipc.hpp"
 #include "nat.hpp"
 #include "network.hpp"
 #include "party.hpp"
@@ -24,9 +25,28 @@ namespace nat
 		const game::dvar_t* rendezvous_ip{};
 		const game::dvar_t* rendezvous_port{};
 
+		// How long the joined match identity outlives a load screen before it's considered stale.
+		constexpr auto JOINED_TOKEN_GRACE = 15s;
+
+		// Re-advertising the host's session needs its live open state AND current token (closing
+		// drops it, reopening mints a fresh one); the connect-time server info is a one-shot.
+		constexpr auto JOINED_HOST_PROBE_INTERVAL = 5s;
+		constexpr auto JOINED_HOST_OPEN_TTL = 20s; // unanswered probes stop the advertising too
+
+		// Sent in place of a token when the host is no longer open to friends.
+		constexpr auto SESSION_CLOSED = "-";
+
+		// Tokens and challenges are both get_challenge() output: 16 uppercase hex chars.
+		constexpr size_t TOKEN_LENGTH = 16;
+
 		// State below is touched only on the main thread (no locking) unless noted otherwise.
 		bool hosting_enabled{}; // host opted in via nat_host; mirrored into the nat_open dvar
 		std::string host_token{}; // non-empty while hosting
+		std::string hosted_token{}; // last host_token, retained across a close so the match keeps its identity
+		std::string joined_token{}; // token of the punched session we joined; cleared when we leave
+		std::chrono::steady_clock::time_point joined_token_deadline{};
+		std::chrono::steady_clock::time_point joined_host_open_until{}; // host still accepts joins
+		std::string session_challenge{}; // outstanding natSession challenge, empty when none
 		std::string observed_public_endpoint{}; // our public endpoint, reflected by the rendezvous
 
 		struct punch_attempt
@@ -295,6 +315,16 @@ namespace nat
 			if (network::is_connectable_address(target))
 			{
 				party::connect(target);
+
+				// Adopt the host's token as our match identity only once we actually connect, so a
+				// punch that never lands can't mislabel the match we're still sitting in.
+				if (punch.joining)
+				{
+					joined_token = punch.token;
+					joined_token_deadline = std::chrono::steady_clock::now() + JOINED_TOKEN_GRACE;
+					// The session was open a moment ago; seed the TTL so we aren't mute until the first probe.
+					joined_host_open_until = std::chrono::steady_clock::now() + JOINED_HOST_OPEN_TTL;
+				}
 			}
 			else
 			{
@@ -322,8 +352,64 @@ namespace nat
 			}
 		}
 
+		// Retires the joined session's identity once we're out of a match (there is no disconnect
+		// hook). Grace-period based: map changes drop Com_IsInGame briefly, and losing the token on
+		// every load screen would silently disable same-match detection for the rest of the session.
+		void update_joined_session()
+		{
+			if (joined_token.empty())
+			{
+				return;
+			}
+
+			const auto now = std::chrono::steady_clock::now();
+			if (punch.active || game::Com_IsInGame())
+			{
+				joined_token_deadline = now + JOINED_TOKEN_GRACE;
+			}
+			else if (now >= joined_token_deadline)
+			{
+				joined_token.clear();
+				joined_host_open_until = {};
+			}
+		}
+
+		// Wire values are constrained to the shape get_challenge() emits, so a hostile host can't
+		// inject separators into the launcher's join-secret grammar.
+		bool is_valid_token(const std::string& value)
+		{
+			return value.size() == TOKEN_LENGTH && std::ranges::all_of(value, [](const char c)
+			{
+				return std::isxdigit(static_cast<unsigned char>(c)) != 0;
+			});
+		}
+
+		// Asks the host for its live session state, so we stop re-advertising a match it closed and
+		// pick up a new token when it reopens (the "CLOSE TO FRIENDS" toggle does both silently).
+		// Challenged, so a packet forged from the host's address can't redirect our friends.
+		void request_joined_session()
+		{
+			if (joined_token.empty())
+			{
+				joined_host_open_until = {};
+				session_challenge.clear();
+				return;
+			}
+
+			const auto host = party::get_connected_server();
+			if (!network::is_connectable_address(host))
+			{
+				return;
+			}
+
+			session_challenge = utils::cryptography::random::get_challenge();
+			network::send(host, "natSession", session_challenge);
+		}
+
 		void punch_frame()
 		{
+			update_joined_session();
+
 			if (!punch.active)
 			{
 				return;
@@ -376,11 +462,19 @@ namespace nat
 		// is_host() excludes the frontend menu, where sv_running is also true.
 		void update_host_session()
 		{
-			if (getinfo::is_host() && hosting_enabled)
+			const auto hosting = getinfo::is_host();
+			if (!hosting)
+			{
+				// Left the match: the identity dies with it, unlike a mere close to friends.
+				hosted_token.clear();
+			}
+
+			if (hosting && hosting_enabled)
 			{
 				if (host_token.empty())
 				{
 					host_token = utils::cryptography::random::get_challenge();
+					hosted_token = host_token;
 					printf("[nat] opened private match to friends, token=%s\n", host_token.data());
 				}
 
@@ -402,6 +496,21 @@ namespace nat
 	std::string current_token()
 	{
 		return host_token;
+	}
+
+	std::string hosted_session_token()
+	{
+		return hosted_token;
+	}
+
+	std::string joined_session_token()
+	{
+		return joined_token;
+	}
+
+	bool joined_session_open()
+	{
+		return !joined_token.empty() && std::chrono::steady_clock::now() < joined_host_open_until;
 	}
 
 	bool can_open_to_friends()
@@ -458,6 +567,7 @@ namespace nat
 		punch.fallback_address = fallback_address;
 		punch.deadline = std::chrono::steady_clock::now() + 12s;
 		punch.next_rendezvous_retry = std::chrono::steady_clock::now() + 1s;
+		joined_token.clear(); // re-adopted in issue_connect once the join actually lands
 
 		printf("[nat] joining token=%s (fallback=%s)\n", token.data(),
 			fallback_address.empty() ? "none" : fallback_address.data());
@@ -539,6 +649,73 @@ namespace nat
 				}
 			});
 
+			// Host: answer a member's session query so it can keep re-advertising us with a live
+			// token. Only addresses in our client list get an answer, so the token stays in-match.
+			network::on("natSession", [](const game::netadr_t& from, const network::data_view& data)
+			{
+				const std::string challenge(reinterpret_cast<const char*>(data.data()), data.size());
+				if (!is_valid_token(challenge) || !getinfo::is_host())
+				{
+					return;
+				}
+
+				bool is_member = false;
+				game::foreach_connected_client([&](const game::client_s& client)
+				{
+					// Skips bots (NA_BOT) and the local listen-server player (NA_LOOPBACK).
+					if (network::is_connectable_address(client.address)
+						&& network::are_addresses_equal(client.address, from))
+					{
+						is_member = true;
+					}
+				});
+
+				if (!is_member)
+				{
+					return;
+				}
+
+				network::send(from, "natSessionAck",
+					challenge + " " + (host_token.empty() ? SESSION_CLOSED : host_token));
+			});
+
+			// Member: adopt the host's live token, or stop advertising when it closed.
+			network::on("natSessionAck", [](const game::netadr_t& from, const network::data_view& data)
+			{
+				// While joining, issue_connect owns joined_token; don't race it.
+				if (session_challenge.empty() || joined_token.empty() || (punch.active && punch.joining)
+					|| !party::is_host(from))
+				{
+					return;
+				}
+
+				const std::string payload(reinterpret_cast<const char*>(data.data()), data.size());
+				const auto fields = utils::string::split(payload, ' ');
+				if (fields.size() != 2 || fields[0] != session_challenge)
+				{
+					return;
+				}
+
+				session_challenge.clear();
+
+				// Closed: the match identity stays valid, only the re-advertising stops.
+				if (fields[1] == SESSION_CLOSED || !is_valid_token(fields[1]))
+				{
+					joined_host_open_until = {};
+					return;
+				}
+
+				const auto rotated = fields[1] != joined_token;
+				joined_token = fields[1];
+				joined_host_open_until = std::chrono::steady_clock::now() + JOINED_HOST_OPEN_TTL;
+
+				if (rotated)
+				{
+					printf("[nat] host session token rotated to %s\n", joined_token.data());
+					ipc::flush_presence(); // republish the secret now instead of on the next tick
+				}
+			});
+
 			// Ack the observed source address, not the claimed one (symmetric NAT).
 			network::on("punch", [](const game::netadr_t& from, const network::data_view& data)
 			{
@@ -578,6 +755,9 @@ namespace nat
 
 			// Host session register/keepalive/teardown, driven purely by game state.
 			scheduler::loop(update_host_session, scheduler::pipeline::main, 5s);
+
+			// Joined session liveness + token refresh, straight from the host.
+			scheduler::loop(request_joined_session, scheduler::pipeline::main, JOINED_HOST_PROBE_INTERVAL);
 
 			// Toggle whether the current private match is open to friends.
 			command::add("nat_host", [](const command::params&)

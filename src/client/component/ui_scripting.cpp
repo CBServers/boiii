@@ -318,6 +318,52 @@ namespace ui_scripting
 				return friends::request_join(bits);
 			}), game::hks::TCFUNCTION);
 
+			// Social INVITE gating. CoD.canInviteToGame needs a real lobby session, which a member
+			// who direct-connected never has, and it can't see our synthetic friends at all — so the
+			// LUI script asks us instead, on the launcher's rule: our match is advertisable and the
+			// target isn't already sitting in it.
+			lua["game"]["canInviteFriend"] = function(convert_function([](const std::string& xuid_hex) -> bool
+			{
+				unsigned long long bits = 0;
+				try { bits = std::stoull(xuid_hex, nullptr, 16); }
+				catch (...) { return false; }
+
+				friends::friend_record record{};
+				if (!friends::find_friend(bits, record) || record.same_match)
+				{
+					return false;
+				}
+
+				return discord::get_join_transport().has_value() || nat::can_open_to_friends();
+			}), game::hks::TCFUNCTION);
+
+			// Already in our match: the native "is he in my lobby" suppression can't see them.
+			lua["game"]["isFriendInMatch"] = function(convert_function([](const std::string& xuid_hex) -> bool
+			{
+				unsigned long long bits = 0;
+				try { bits = std::stoull(xuid_hex, nullptr, 16); }
+				catch (...) { return false; }
+
+				friends::friend_record record{};
+				return friends::find_friend(bits, record) && record.same_match;
+			}), game::hks::TCFUNCTION);
+
+			// Invite send path, bypassing Engine.SendInviteByXuid (which wants the lobby session a
+			// member hasn't got). False => not one of ours, LUI falls back to the native path.
+			lua["game"]["inviteFriend"] = function(convert_function([](const std::string& xuid_hex) -> bool
+			{
+				unsigned long long bits = 0;
+				try { bits = std::stoull(xuid_hex, nullptr, 16); }
+				catch (...) { return false; }
+				return friends::request_invite(bits);
+			}), game::hks::TCFUNCTION);
+
+			// Whether sending an invite will also open the match (host of a closed one) — toast wording.
+			lua["game"]["friendInviteOpensMatch"] = function(convert_function([]() -> bool
+			{
+				return nat::can_open_to_friends();
+			}), game::hks::TCFUNCTION);
+
 			// raw-name -> native id registration, called by the friend_join LUI script at UI load
 			// (values arrive as strings; the game's struct tables are only reachable from Lua)
 			lua["game"]["registerFriendMap"] = function(convert_function(
@@ -601,6 +647,48 @@ namespace ui_scripting
 		{
 			auto state = get_globals();
 			state["LuaUtils"]["ShowMessageDialog"](0, 0, message.data(), title.data());
+		}, scheduler::pipeline::renderer);
+	}
+
+	void show_toast(const std::string& kicker, const std::string& description, const std::string& icon)
+	{
+		scheduler::once([=]
+		{
+			// Fires on external events (IPC), not user actions, so the UI may not exist yet or at all.
+			try
+			{
+				if (!*game::hks::lua_state)
+				{
+					return;
+				}
+
+				const auto cod = get_globals()["CoD"];
+				if (!cod.is<table>())
+				{
+					return;
+				}
+
+				const auto overlay = cod["OverlayUtility"];
+				if (!overlay.is<table>())
+				{
+					return;
+				}
+
+				const auto show = overlay["ShowToast"];
+				if (!show.is<function>())
+				{
+					return;
+				}
+
+				show.as<function>()("Invite", kicker.data(), description.data(), icon.data());
+			}
+			catch (const std::exception& ex)
+			{
+				printf("[toast] failed to show toast: %s\n", ex.what());
+			}
+			catch (...)
+			{
+			}
 		}, scheduler::pipeline::renderer);
 	}
 
