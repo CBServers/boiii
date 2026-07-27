@@ -37,7 +37,11 @@ namespace ui_scripting
 		{
 			this->release();
 			this->value_ = other.value_;
+			// the registry ref has to move with the value, otherwise the moved-to object holds a
+			// live HksObject the GC no longer sees a reference to
+			this->ref_ = other.ref_;
 			other.value_.t = game::hks::TNONE;
+			other.ref_ = 0;
 		}
 
 		return *this;
@@ -58,11 +62,13 @@ namespace ui_scripting
 		this->value_ = value;
 
 		const auto state = *game::hks::lua_state;
-		const auto top = state->m_apistack.top;
+		// hksi_luaL_ref allocates into the registry and can reallocate the api stack, so save an
+		// index relative to bottom rather than a raw pointer
+		const auto top_index = state->m_apistack.top - state->m_apistack.bottom;
 
 		push_value(this->value_);
 		this->ref_ = game::hks::hksi_luaL_ref(*game::hks::lua_state, -10000);
-		state->m_apistack.top = top;
+		state->m_apistack.top = state->m_apistack.bottom + top_index;
 	}
 
 	void hks_object::release()
@@ -71,6 +77,7 @@ namespace ui_scripting
 		{
 			game::hks::hksi_luaL_unref(*game::hks::lua_state, -10000, this->ref_);
 			this->value_.t = game::hks::TNONE;
+			this->ref_ = 0; // a second unref of the same slot corrupts the registry free list
 		}
 	}
 
@@ -134,10 +141,11 @@ namespace ui_scripting
 			return;
 		}
 
-		const auto top = state->m_apistack.top;
+		// interning the string allocates, which can reallocate the api stack
+		const auto top_index = state->m_apistack.top - state->m_apistack.bottom;
 		game::hks::hksi_lua_pushlstring(state, value, static_cast<std::uint32_t>(len));
 		obj = state->m_apistack.top[-1];
-		state->m_apistack.top = top;
+		state->m_apistack.top = state->m_apistack.bottom + top_index;
 
 		this->value_ = obj;
 	}

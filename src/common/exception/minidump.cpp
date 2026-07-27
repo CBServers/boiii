@@ -15,7 +15,9 @@ namespace exception
 				| MiniDumpWithProcessThreadData //
 				| MiniDumpWithFullMemoryInfo //
 				| MiniDumpWithThreadInfo //
-				| MiniDumpWithUnloadedModules;
+				| MiniDumpWithUnloadedModules //
+				| MiniDumpWithDataSegs // globals, so hks_lua_state and the LUI root descriptors resolve
+				| MiniDumpWithIndirectlyReferencedMemory; // pointers off the stack, so lua_State is readable
 
 			return static_cast<MINIDUMP_TYPE>(type);
 		}

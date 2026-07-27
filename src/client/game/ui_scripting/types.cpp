@@ -73,12 +73,12 @@ namespace ui_scripting
 		value.t = game::hks::TUSERDATA;
 
 		const auto state = *game::hks::lua_state;
-		const auto top = state->m_apistack.top;
+		const auto top_index = state->m_apistack.top - state->m_apistack.bottom;
 
 		push_value(value);
 
 		this->ref = game::hks::hksi_luaL_ref(*game::hks::lua_state, -10000);
-		state->m_apistack.top = top;
+		state->m_apistack.top = state->m_apistack.bottom + top_index;
 	}
 
 	void userdata::release()
@@ -86,6 +86,7 @@ namespace ui_scripting
 		if (this->ref)
 		{
 			game::hks::hksi_luaL_unref(*game::hks::lua_state, -10000, this->ref);
+			this->ref = 0;
 		}
 	}
 
@@ -188,12 +189,12 @@ namespace ui_scripting
 		value.t = game::hks::TTABLE;
 
 		const auto state = *game::hks::lua_state;
-		const auto top = state->m_apistack.top;
+		const auto top_index = state->m_apistack.top - state->m_apistack.bottom;
 
 		push_value(value);
 
 		this->ref = game::hks::hksi_luaL_ref(*game::hks::lua_state, -10000);
-		state->m_apistack.top = top;
+		state->m_apistack.top = state->m_apistack.bottom + top_index;
 	}
 
 	void table::release()
@@ -201,6 +202,7 @@ namespace ui_scripting
 		if (this->ref)
 		{
 			game::hks::hksi_luaL_unref(*game::hks::lua_state, -10000, this->ref);
+			this->ref = 0;
 		}
 	}
 
@@ -318,12 +320,12 @@ namespace ui_scripting
 		value.t = this->type;
 
 		const auto state = *game::hks::lua_state;
-		const auto top = state->m_apistack.top;
+		const auto top_index = state->m_apistack.top - state->m_apistack.bottom;
 
 		push_value(value);
 
 		this->ref = game::hks::hksi_luaL_ref(*game::hks::lua_state, -10000);
-		state->m_apistack.top = top;
+		state->m_apistack.top = state->m_apistack.bottom + top_index;
 	}
 
 	void function::release()
@@ -331,6 +333,7 @@ namespace ui_scripting
 		if (this->ref)
 		{
 			game::hks::hksi_luaL_unref(*game::hks::lua_state, -10000, this->ref);
+			this->ref = 0;
 		}
 	}
 
