@@ -13,6 +13,7 @@
 
 #include "game/game.hpp"
 #include "launcher/launcher.hpp"
+#include "component/dll_proxy.hpp"
 #include "component/updater.hpp"
 
 namespace
@@ -299,6 +300,7 @@ int main()
 
 		try
 		{
+			dll_proxy::block();
 			validate_non_network_share();
 			remove_crash_file();
 			create_cache_files();
